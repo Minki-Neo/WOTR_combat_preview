@@ -13,8 +13,8 @@ try {
     Copy-Item 'bin/Release/net472/CombatPreview.dll', 'Info.json', 'LICENSE', 'THIRD_PARTY.md', 'README.ko.md', 'docs/DIAGNOSTICS.ko.md' $stage
     $version = (Get-Content 'Info.json' -Raw | ConvertFrom-Json).Version
     New-Item -ItemType Directory -Force 'dist' | Out-Null
-    Compress-Archive -Path $stage -DestinationPath "dist/CombatPreview-$version-diagnostic-only-UMM.zip" -Force
-    Write-Host 'Built diagnostic-only UMM package. Hover is blocked; game execution remains unverified.'
+    Compress-Archive -Path $stage -DestinationPath "dist/CombatPreview-$version-beta-UMM.zip" -Force
+    Write-Host 'Built read-only beta UMM package. Partial model; in-game UI validation remains required.'
 } finally {
     if ($stageRoot -and (Test-Path $stageRoot)) { Remove-Item -Recurse -Force $stageRoot }
     Pop-Location

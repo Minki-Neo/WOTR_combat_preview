@@ -1,6 +1,6 @@
 # Validation — diagnostic development history
 
-Latest: the 0.2.2 update and user-supplied 0.2.1 runtime evidence are recorded at the end. Earlier sections describe the initial cloud validation.
+Latest: 0.3.0 beta cloud validation is recorded at the end. Earlier sections are historical results, including user-supplied 0.2.x runtime evidence.
 
 Date: 2026-11-01 (Asia/Seoul). This records commands actually executed in the cloud instance.
 No game executable, Unity asset data, user save or interactive game session was supplied/run.
@@ -113,3 +113,31 @@ Both new damage targets had no existing reduction part. Nonempty DR/energy/pool 
 acceptance tests remain unverified. The analyzer now separates cumulative vs per-session results. It was exercised
 on the supplied old/new files, a cross-session duplicate object-ID case, a record-sequence gap and interleaved session
 ordering. No runtime C# code, DLL, installer or version was changed for this analysis-tool/documentation update.
+
+## 0.3.0 basic-weapon beta — 2026-11-01 Asia/Seoul
+
+- Original pure math: 6,699 assertions; contracts/diagnostics/safety: 138; new beta math/association/logging:
+  250. **7,087 assertions passed** using the real C# implementations, not game execution.
+- Independent Python checks: 509; two project XML files parsed. WOTR syntax: 28 C# source/test files.
+- Whole net472 mod build against the supplied Managed/UMM references: 0 errors, one existing unused
+  AttackPrediction.Charge warning. No reference/game DLL or decompiled code is packaged.
+- New beta tests cover independent 400-pair attack/confirmation enumeration over AB/AC thresholds,
+  basic iterative rows and raw damage moments, incomplete/unknown damage, before/after associations,
+  changed input/weapon/target/turn/mode, expiration/clock regression, extra attacks, cancellation,
+  no comparable fields, typed JSON rows and roll links. A random damage sample differing from mean
+  never becomes an expectation mismatch. No tests were disabled to pass.
+- Target HP display reads cached maximum and damage, with temporary HP separate; it does not enter
+  the model's deterministic difference fields. Static IL inspection and full compilation cover the field
+  shape; actual HP/buff/heal refresh and UI rendering require the runtime plan.
+
+This beta intentionally displays a partial base-primary-weapon model. Attack count, enhancements, feats,
+ability substitution and conditional behavior are not fully modeled. Actual mitigation remains unavailable.
+Every beta comparison says fullConditionsVerified=false. Passing tests do not establish full combat accuracy.
+The 0.3.0 UI/hook association and all-state/all-RNG noninterference have **not been run in the game**.
+Prior 0.2.2 observation evidence is not evidence for these newly enabled paths. PowerShell packaging and
+ModFinder itself were not run on Linux. See RUNTIME_TEST_PLAN.ko.md for the first current-save test.
+
+Beta fixture generation and the analyzer were executed: one deliberate AB model difference, zero missing
+preview/roll references. Python packaging executed a successful full build and verified ZIP CRC and six-file
+allowlist; shell release publisher syntax passed bash -n. Distribution payload and source ZIP are checked
+separately for version, CRC, byte-identical built DLL and excluded proprietary/binary artifacts.

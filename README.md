@@ -1,46 +1,40 @@
-# WotR Combat Preview
+# WotR Combat Preview — 0.3.0 읽기 전용 베타
 
-**0.2.2 진단용 개발 빌드입니다. 전투 hover 미리보기는 차단되어 있습니다.**
-상태/RNG 안전성이 검증되지 않은 기존 이벤트 재실행 경로를 막고, 기본 OFF인 로컬 공격·피해 관측을 추가했습니다.
-자동 유효 방어 판독과 실시간 예측 비교는 아직 완료되지 않았습니다.
+턴제 전투에서 공격 가능한 적을 가리키면 **기본 주무기 모델의 부분 추정**을 표시하고,
+표시한 모델과 실제 AB·AC·무기 구성의 차이를 로컬 로그에 기록합니다. 화면 차이 알림은 선택 사항입니다.
+패널 상단에는 대상의 현재/최대 체력과 임시 HP도 표시합니다.
+추가 게임 규칙 이벤트나 주사위를 실행해 결과를 얻지 않습니다.
 
-## 다운로드
+## 다운로드와 사용
 
-- [진단용 UMM 설치 ZIP](releases/v0.2.2/CombatPreview-0.2.2-diagnostic-only-UMM.zip)
-- [개발 소스 ZIP](releases/v0.2.2/CombatPreview-0.2.2-development-source.zip)
-- [SHA-256 체크섬](releases/v0.2.2/SHA256SUMS.txt)
-- [v0.2.2 설명](releases/v0.2.2/RELEASE_NOTES.md)
+- [0.3.0 베타 UMM ZIP](releases/v0.3.0/CombatPreview-0.3.0-beta-UMM.zip)
+- [개발 소스 ZIP](releases/v0.3.0/CombatPreview-0.3.0-development-source.zip)
+- [설치·지원 범위·첫 시험 안내](CombatPreview/README.ko.md)
+- [변경 설명](releases/v0.3.0/RELEASE_NOTES.md)
+- [체크섬](releases/v0.3.0/SHA256SUMS.txt)
 
-ZIP 파일 페이지에서 **Download raw file**을 선택합니다. 저장소가 비공개이면 저장소 접근 권한이 있는
-GitHub 계정으로 로그인해야 합니다. 게임/Unity/Harmony/UMM 참조 DLL은 포함하지 않습니다.
+ZIP 파일 페이지에서 **Download raw file**을 선택합니다. 비공개 저장소라면 권한 있는 GitHub 계정으로 로그인해야 합니다.
+게임 종료 후 ModFinder/UMM으로 설치하고 Ctrl+F10 → Combat Preview에서 **베타 무기 미리보기**를 켭니다.
+일반 장검 등 제조 무기를 주무기로 선택해 현재 전투에서 패널 표시와 비교 기록부터 시험할 수 있습니다.
 
-다운로드한 설치 ZIP을 ModFinder의 로컬 ZIP 설치 또는 UMM으로 설치합니다. 실제 게임에서 로드/진단 동작은 아직 검증하지 않았습니다.
-설치 후 Ctrl+F10 → Combat Preview에서 로컬 진단을 선택적으로 켭니다. 이 빌드에서는 hover 패널이 나오지 않습니다.
+## 베타 범위
 
-## ModFinder 업데이트와 비공개 저장소
+기본 BAB 반복 모델과 저장된 일반 능력치 기반입니다. 가속/연타/보조손/자연/탈것 추가 타격, 무기 강화/특기/
+능력치 치환/조건부 보정 등은 미반영입니다. 실제 전체 풀어택 수·순서가 아닙니다.
+DR·저항·면역·보호막 적용 후 피해는 미지원이며, 알려지지 않은 방어를 0으로 계산하지 않습니다.
+차이 기록은 미반영 효과가 원인일 수 있으며 확정 버그가 아닙니다. 실제 피해 한 번과 기대값을 비교해 경고하지 않습니다.
 
-제공된 ModFinder 1.5.3을 정적으로 확인한 결과, 다운로드용 HTTP 클라이언트에 GitHub 인증을 설정하는 경로가 없습니다.
-따라서 비공개 GitHub ZIP/Release를 일반 ModFinder 자동 업데이트 대상으로 사용하기는 어렵습니다.
-GitHub 브라우저 로그인 상태가 ModFinder의 HTTP 요청으로 전달되지는 않습니다.
+제공된 게임 2.7.0x MVID에 맞춘 필드 판독만 허용하며 TTT는 차단합니다. 이전 0.2.2의 로드/관측은 사용자
+로그로 확인했지만, **0.3.0 UI·실제 비교·전체 상태/RNG 비간섭은 아직 실제 게임 검증이 필요합니다.**
+기존 DryRun 이벤트 재실행은 계속 차단합니다.
 
-현재 비공개 저장소는 소스 보관과 수동 다운로드에 사용할 수 있습니다. 공개 배포를 원하면 별도 공개 배포 저장소와
-ModFinder 매니페스트 등록을 검토할 수 있습니다. 기존 저장소의 공개 여부를 바꾸지 않습니다.
-GitHub Release를 생성해도 ModFinder의 중앙 목록에 자동 등록되지는 않습니다.
+## 기록과 배포
 
-## 첫 게임 로그 결과
+[검증 기록](CombatPreview/docs/VALIDATION.md), [안전성 감사](CombatPreview/docs/SAFETY_AUDIT.md),
+[로그 분석](CombatPreview/docs/RUNTIME_LOG_REVIEW.ko.md)을 확인하세요. 원시 사용자 게임 로그와 캐릭터명은 저장소에 넣지 않습니다.
+0.2.x 진단용 ZIP은 [이전 버전 폴더](releases)에 보존합니다.
 
-굴림 50건 중 무기 공격에 연결된 굴림은 35건이며, 명중 14건과 피해 14건이 모두 연결됐습니다.
-부모 공격이 없는 15건, 긴 방어 안내에 가린 상세 7건, 풀 캐시로 보호막을 오인할 수 있던 진단 코드를 0.2.2에서 보완했습니다.
-공개 저장소에는 사용자의 실제 캐릭터명/원시 게임 로그를 포함하지 않습니다.
-[분석 기록](CombatPreview/docs/RUNTIME_LOG_REVIEW.ko.md)을 참고하세요.
-
-## 개발과 검증
-
-프로젝트는 [CombatPreview](CombatPreview)에 있습니다. [설치/빌드 안내](CombatPreview/README.ko.md),
-[검증 기록](CombatPreview/docs/VALIDATION.md), [안전성 감사](CombatPreview/docs/SAFETY_AUDIT.md)를 확인하세요.
-실제 제공된 게임 DLL을 사용한 전체 net472 빌드, C# 6,837 assertions와 독립 Python 검사 509개가 통과했습니다.
-0.2.1의 사용자 로그에서 로드와 이벤트 관측을 확인했습니다. 0.2.2 재실행에서도 게임 2.7.0x / UMM 0.33.3 / Harmony 2.0.4의 로드와 굴림 9건·피해 2건의 연결을 확인했습니다. 정확도·상태/RNG 비간섭 검증은 별도입니다.
-
-GitHub Release API 접근이 가능한 환경에서는 루트에서 `bash tools/publish_release.sh`로
-태그가 이미 게시된 v0.2.2의 진단용 prerelease와 파일을 생성할 수 있습니다.
-이 스크립트는 기존 릴리스를 덮어쓰거나 저장소 공개 설정을 바꾸지 않습니다.
+GitHub Release 생성은 `bash tools/publish_release.sh`이며 실제 Release와 ModFinder 중앙 매니페스트 등록은 별도입니다.
+확인한 ModFinder 1.5.3의 기본 다운로드 클라이언트에는 GitHub 인증 경로가 없어 비공개 저장소 자동 업데이트는 어렵습니다.
+게임·Unity·Harmony·UMM 참조 DLL은 배포하지 않습니다. MIT 라이선스/원본 고지는 [LICENSE](CombatPreview/LICENSE)와
+[THIRD_PARTY](CombatPreview/THIRD_PARTY.md)를 따릅니다.

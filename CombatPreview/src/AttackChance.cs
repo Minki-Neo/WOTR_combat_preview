@@ -76,9 +76,6 @@ namespace CombatPreview
         public int DamageMin;
         public readonly List<DamageTerm> DamageTerms = new List<DamageTerm>();
         public DamageSummary NormalDamage, CriticalDamage;
-        public MitigatedResult TargetMitigated, ScenarioMitigated;
-        public PredictionReport RawReport;
-        public PredictionReport TargetReport, ScenarioReport;
         public double Expected => DamageMath.Expected(Hit, Crit, NormalDamage.Mean, CriticalDamage.Mean);
         public int DamageMax;
         // Damage of a confirmed critical hit: as RuleAttackWithWeapon.CreateDamage, the critical multiplier goes on the

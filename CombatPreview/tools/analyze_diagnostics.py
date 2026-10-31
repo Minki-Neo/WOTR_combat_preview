@@ -40,6 +40,8 @@ def summarize(rows):
     damage_keys = {key(r, 'rollEventId') for r in damage}
     ids = [key(r) for r in rows if r.get('eventId') is not None]
     versions = sorted({r.get('runtime', {}).get('gameVersion') for r in rows if r.get('runtime', {}).get('gameVersion')})
+    beta_previews = {(r.get('sessionId'), r.get('previewId')) for r in rows if r.get('kind') == 'beta-preview'}
+    beta_comparisons = [r for r in rows if r.get('kind') == 'beta-comparison']
     return {
         'records': len(rows), 'kinds': dict(Counter(r.get('kind') for r in rows)),
         'observedRolls': len(observations), 'associatedWeaponRolls': len(associated),
@@ -54,6 +56,10 @@ def summarize(rows):
         'legacyRecordsWithoutSessionId': sum(not r.get('sessionId') for r in rows),
         'gameVersions': versions,
         'comparisons': dict(Counter(r.get('status') for r in observations)),
+        'betaComparisons': dict(Counter(r.get('status') for r in beta_comparisons)),
+        'betaModelDifferences': sum(r.get('status') == 'ComparedPartialModel' and bool(r.get('differentFields')) for r in beta_comparisons),
+        'betaComparisonsWithoutPreview': sum((r.get('sessionId'), r.get('previewId')) not in beta_previews for r in beta_comparisons),
+        'betaComparisonsWithoutRoll': sum(key(r, 'rollEventId') not in rolls for r in beta_comparisons),
         'warning': 'Legacy unassociated rolls are not proven fake; these counts do not validate preview accuracy or state/RNG preservation.'
     }
 

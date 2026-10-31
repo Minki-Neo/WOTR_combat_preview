@@ -1,3 +1,5 @@
+> Current 0.3.0: legacy replay remains blocked. A separate opt-in read-only basic-weapon partial model is described in the final section. Earlier blanket hover-block statements describe 0.2.x.
+
 # State mutation audit — 0.2.1
 
 Date: 2026-11-01 (Asia/Seoul). Static inspection and compiled source only; no in-game preservation claim.
@@ -61,3 +63,40 @@ A positive m_RemainPool is no longer evidence of a pool, since non-pool componen
 and damage are excluded; unassociated rolls are labeled separately and cannot consume a prediction. Session IDs use
 OS Guid generation, never Unity/game RNG. Legacy prediction replay remains permanently blocked. Runtime metadata is
 copied on observer creation and included on each line. No new game rules, evaluator calls or state restoration were added.
+
+## 0.3.0 basic-weapon beta read graph
+
+The new path does not call the legacy predictor. Compatibility requires game assembly MVID
+`90a9869c-2792-4c7b-bfb7-5a8b33da7c82` and no detected TabletopTweaks assembly.
+No Harmony patches are installed. No Rulebook.Trigger, new gameplay rules/dice, event replay, damage application,
+virtual defense evaluator, pool spending, cleanup, or RNG restoration is used by this path.
+
+Static inspection of the supplied DLL established these routes:
+
+- Selected-unit/turn cached action state and existing hover/highlight determine whether to show the panel.
+  `GetActionsStates` and `GetEnabledFullAttack` read stored turn state; they do not enumerate attacks.
+- Read `ModifiableValue.<ModifiedValue>k__BackingField` for BAB, ability, extra AB/damage, AC, maximum HP
+  and temporary HP. Current HP is max(0, cached maximum minus UnitDescriptor.m_Damage), displayed separately.
+  HP reads never apply healing/damage or invoke a health rule. A missing maximum stays unavailable.
+- Current primary slot uses existing ItemSlot.m_ItemRef → EntityRef.m_Proxy → Proxy.Entity backing field.
+  Do not call MaybeWeapon/EmptyHandWeapon (can create an unarmed weapon), or EntityRef.Entity (can refresh proxy).
+  Fake slots/items being removed are rejected.
+- Existing item blueprint field and preloaded type reference only. Check BlueprintReferenceBase.Cached backing
+  field before type-dependent getters, avoiding the lazy GetBlueprint load/cache write when data is absent.
+- Copy base weapon scalars to immutable BetaInput. Position, HP damage and sorted fact identity/Active plus
+  known scalars form a limited fingerprint. This is not a complete game-state or rule condition revision.
+- UnitAttack.EnumerateFullAttack triggers attack-count/limb rules in the supplied game; it is deliberately
+  not called. The pure model builds only BAB iteratives, and labels extra attacks/conditional corrections unsupported.
+- A subscribed before-event hook reads inputs at the start of an actual RuleAttackWithWeapon's handler phase.
+  The passive actual-roll observer consumes that association and reads completed roll/weapon-stat scalars.
+  Unmodeled/changed/expired input produces a skip status. Root completion cleans abandoned pending entries.
+
+Only a model actually painted by IMGUI is marked displayed. Association is bounded by display age (2s),
+completion age (10s), known input identity, and 32 pending events. Comparison never certifies full conditions:
+`fullConditionsVerified=false`. Only deterministic AB/AC/dice/bonus/component differences are logged as
+partial-model differences, not proven defects. A single damage result is never tested against expected damage.
+Actual DR/resistance/pool mitigation remains unavailable. Local logs and optional throttled toast are owned state.
+
+Pure tests, syntax parsing and net472 compilation passed; these do not execute Unity lifecycle, render the UI,
+verify callback ordering in the live mod configuration, or prove complete state/RNG preservation.
+The actual 0.3.0 opt-in UI, HP refresh, comparison association, transitions and noninterference remain unrun in game.

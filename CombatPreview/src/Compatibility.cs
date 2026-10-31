@@ -51,10 +51,10 @@ namespace CombatPreview
                 var info = Harmony.GetPatchInfo(method);
                 if (info != null) Main.Log.Log(name + " patch owners: " + string.Join(", ", info.Owners.ToArray()));
             }
-            bool apiPresent = Issues.Count == 0;
-            CanPreview = apiPresent && PredictionSafety.CanReplayEvents;
-            Issues.Add(PredictionSafety.BlockReason);
-            Summary = "Game " + GameVersion + " | " + (CanPreview ? "API preflight passed; runtime UNVERIFIED" : (apiPresent ? "BLOCKED: unsafe legacy event replay" : "BLOCKED: missing API and unsafe event replay"));
+            CanPreview = BetaReader.Supported && !HasTabletopTweaks;
+            if (!CanPreview) Issues.Add("Read-only beta unavailable for this game assembly / TTT setup.");
+            Summary = "Game " + GameVersion + " | " + (CanPreview ? "READ-ONLY BETA: partial basic weapon model" : "BETA BLOCKED: unverified game/rule layout");
+            Main.Log.Log(PredictionSafety.BlockReason);
             Main.Log.Log(Summary);
             foreach (var issue in Issues) Main.Log.Error(issue);
         }

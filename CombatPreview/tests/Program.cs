@@ -10,7 +10,9 @@ class Program
     {
         if (args.Length == 2 && args[0] == "--diagnostic-fixture")
         { ContractTests.WriteDiagnosticFixture(args[1]); return; }
-        if (args.Length != 0) throw new ArgumentException("Usage: [--diagnostic-fixture NEW_OUTPUT_PATH]");
+        if (args.Length == 2 && args[0] == "--beta-fixture")
+        { BetaTests.WriteExample(args[1]); return; }
+        if (args.Length != 0) throw new ArgumentException("Usage: [--diagnostic-fixture NEW_OUTPUT_PATH | --beta-fixture NEW_OUTPUT_PATH]");
         var sword = new List<DamageTerm> { new DamageTerm(1, 8, 15, true) };
         var n = DamageMath.Summarize(sword, 1); var c = DamageMath.Summarize(sword, 2);
         Equal(n.Min, 16, "min"); Equal(n.Mean, 19.5, "mean"); Equal(n.Max, 23, "max");
@@ -87,5 +89,6 @@ class Program
         Equal(invalidMean?1:0,1,"NaN mean rejected");
         Console.WriteLine("PASS: " + assertions + " original math assertions");
         ContractTests.Run();
+        BetaTests.Run();
     }
 }

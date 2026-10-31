@@ -1,8 +1,8 @@
 {
  "Id":"CombatPreview",
- "DisplayName":"Combat Preview (Diagnostics Only)",
+ "DisplayName":"Combat Preview (Read-only Beta)",
  "Author":"Combat Preview contributors; based on sergusaev/Success Chance",
- "Version":"0.2.2",
+ "Version":"0.3.0",
  "ManagerVersion":"0.33.3",
  "AssemblyName":"CombatPreview.dll",
  "EntryMethod":"CombatPreview.Main.Load",

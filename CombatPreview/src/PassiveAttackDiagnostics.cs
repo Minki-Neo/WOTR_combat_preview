@@ -15,12 +15,10 @@ namespace CombatPreview
     // Rulebook.Trigger, rule construction, reduction application or RNG access.
     internal sealed class PassiveAttackDiagnostics : IGlobalRulebookHandler<RuleAttackRoll>, IGlobalRulebookHandler<RuleDealDamage>
     {
-        sealed class Identity { public long Value; }
-        readonly ConditionalWeakTable<object, Identity> identities = new ConditionalWeakTable<object, Identity>();
         readonly Stopwatch clock = Stopwatch.StartNew();
         readonly DiagnosticRecorder recorder;
-        long nextId;
         bool active;
+        string lastPreview;
         internal PassiveAttackDiagnostics(string path)
         {
             var log = new LocalDiagnosticLog(path); recorder = new DiagnosticRecorder(log.Write, () => clock.ElapsedMilliseconds);
@@ -33,18 +31,24 @@ namespace CombatPreview
                 { "tttAssemblyDetected", Compatibility.HasTabletopTweaks.ToString() }
             });
         }
-        internal void Reset() { recorder.Enabled = false; active = false; }
+        internal void Reset() { recorder.Enabled = false; active = false; lastPreview = null; }
+        internal void PreviewShown(BetaSnapshot snapshot)
+        {
+            if (!CanObserve() || snapshot == null || lastPreview == snapshot.Id || !Main.Settings.CompareBeta) return;
+            if (recorder.RecordBetaPreview(snapshot)) lastPreview = snapshot.Id;
+        }
         internal string Status { get { return recorder.Faulted ? "Stopped after a file write failure"
             : "Dropped by rate limit: " + recorder.Dropped + " | Ignored simulated events: " + recorder.IgnoredSimulated; } }
         bool CanObserve()
         {
-            bool enabled = Main.Settings != null && Main.Settings.Enabled && Main.Settings.LocalDiagnostics;
+            bool enabled = Main.Settings != null && Main.Settings.Enabled
+                && (Main.Settings.LocalDiagnostics || (Main.Settings.ShowOnHover && Main.Settings.CompareBeta));
             if (!enabled) { if (active) Reset(); return false; }
             if (!active) { recorder.Enabled = true; active = true; }
             return !recorder.Faulted;
         }
         string Id(object value)
-        { return value == null ? "unknown" : identities.GetValue(value, v => new Identity { Value = Interlocked.Increment(ref nextId) }).Value.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+        { return BetaIdentity.Id(value); }
         public void OnEventAboutToTrigger(RuleAttackRoll evt) { }
         public void OnEventDidTrigger(RuleAttackRoll evt)
         {
@@ -54,16 +58,18 @@ namespace CombatPreview
                 if (evt == null || evt.Initiator == null || evt.Target == null || DryRun.Active) return;
                 if (evt.IsFake) { recorder.IgnoreSimulated(); return; }
                 var context = Context(evt);
+                var comparison = BetaRuntime.After(evt);
                 // This observer does not know the complete condition revision or
                 // applied damage. Leave them absent, never label them comparable.
                 recorder.Observe(Id(evt), new ActualAttackObservation(context, evt.AttackBonus, evt.TargetAC,
                     GameRules.Die(evt) > 0, evt.IsHit, penalty: evt.AttackBonusPenalty,
                     fullAttack: evt.RuleAttackWithWeapon?.IsFullAttack, criticalConfirmed: evt.IsCriticalConfirmed,
-                    hasWeaponAttack: evt.RuleAttackWithWeapon != null));
+                    hasWeaponAttack: evt.RuleAttackWithWeapon != null), comparison == null ? null : comparison.Preview.Id);
+                if (comparison != null) recorder.RecordBetaComparison(comparison, context, Id(evt));
             }
             catch (Exception e)
             {
-                Reset(); Main.Settings.LocalDiagnostics = false;
+                Reset(); Main.Settings.LocalDiagnostics = false; Main.Settings.CompareBeta = false; BetaRuntime.Invalidate();
                 Main.Error("Passive diagnostics disabled", e);
             }
         }
@@ -97,7 +103,7 @@ namespace CombatPreview
             }
             catch (Exception e)
             {
-                Reset(); Main.Settings.LocalDiagnostics = false;
+                Reset(); Main.Settings.LocalDiagnostics = false; Main.Settings.CompareBeta = false; BetaRuntime.Invalidate();
                 Main.Error("Passive damage diagnostics disabled", e);
             }
         }

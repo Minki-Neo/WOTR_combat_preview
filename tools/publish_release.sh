@@ -14,13 +14,17 @@ gh api repos/Minki-Neo/WOTR_combat_preview --jq '{private,default_branch}'
   cd "$release_dir"
   sha256sum -c SHA256SUMS.txt
 )
+install_zip="$release_dir/CombatPreview-$version-beta-UMM.zip"
+if [ ! -f "$install_zip" ]; then install_zip="$release_dir/CombatPreview-$version-diagnostic-only-UMM.zip"; fi
+release_title="v$version — 읽기 전용 미리보기 베타 (기본 주무기 부분 추정)"
+if [[ "$install_zip" == *diagnostic-only* ]]; then release_title="v$version — 진단용 개발 빌드 (hover 차단)"; fi
 gh release create "v$version" \
   --repo Minki-Neo/WOTR_combat_preview \
   --verify-tag \
   --prerelease \
   --latest=false \
-  --title "v$version — 진단용 개발 빌드 (hover 미리보기 차단)" \
+  --title "$release_title" \
   --notes-file "$release_dir/RELEASE_NOTES.md" \
-  "$release_dir/CombatPreview-$version-diagnostic-only-UMM.zip" \
+  "$install_zip" \
   "$release_dir/CombatPreview-$version-development-source.zip" \
   "$release_dir/SHA256SUMS.txt"

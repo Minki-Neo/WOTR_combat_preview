@@ -45,3 +45,9 @@ License remains MIT. Original upstream notices preserved.
 The user's game assemblies were inspected locally to identify API shapes and
 state-mutating paths; no game assembly or decompiled game source is redistributed.
 ILSpy command-line 9.1.0.7988 was a development inspection tool, not bundled in the mod.
+
+0.3.0 original additions: BetaModel.cs, BetaRuntime.cs, BetaTests.cs, rewritten
+PreviewPanel.cs and read-only HoverChance.cs, beta comparison diagnostics and packaging.
+These additions use MIT terms and preserve upstream notices. Local DLL metadata/IL
+inspection informed API/field choices; no decompiled game source or reference DLL is redistributed.
+The legacy replay code remains dormant and blocked; the beta does not restore/replay game events.

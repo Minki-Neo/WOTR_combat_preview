@@ -85,7 +85,7 @@ namespace CombatPreview
             IsFake = isFake; HasWeaponAttack = hasWeaponAttack;
         }
     }
-    public enum ComparisonStatus { NoPrediction, ConditionsChanged, SnapshotExpired, ManualScenario, UnverifiableConditions, Compared, UnassociatedRoll }
+    public enum ComparisonStatus { NoPrediction, ConditionsChanged, SnapshotExpired, ManualScenario, UnverifiableConditions, Compared, UnassociatedRoll, BetaPreviewAssociated }
     public sealed class DiagnosticComparison
     {
         public ComparisonStatus Status { get; internal set; }
@@ -158,7 +158,7 @@ namespace CombatPreview
                 return id;
             }
         }
-        public DiagnosticComparison Observe(string eventId, ActualAttackObservation actual)
+        public DiagnosticComparison Observe(string eventId, ActualAttackObservation actual, string betaPreviewId = null)
         {
             lock (gate)
             {
@@ -189,8 +189,10 @@ namespace CombatPreview
                     }
                 }
                 Prune(now);
+                if (result.Status == ComparisonStatus.NoPrediction && !string.IsNullOrEmpty(betaPreviewId)) result.Status = ComparisonStatus.BetaPreviewAssociated;
                 Emit(now, actual.HasWeaponAttack ? "observation" : "unassociated-observation", id, actual.Context, "\"eventId\":" + Quote(eventId)
                     + ",\"isFake\":false,\"hasWeaponAttack\":" + Bool(actual.HasWeaponAttack)
+                    + ",\"betaPreviewId\":" + Quote(betaPreviewId)
                     + ",\"status\":" + Quote(result.Status.ToString()) + ",\"ab\":" + actual.AttackBonus + ",\"ac\":" + actual.TargetAC
                     + ",\"rolled\":" + Bool(actual.Rolled) + ",\"hit\":" + Bool(actual.Hit)
                     + ",\"penalty\":" + (actual.Penalty.HasValue ? actual.Penalty.Value.ToString(CultureInfo.InvariantCulture) : "null")
@@ -221,6 +223,42 @@ namespace CombatPreview
                     + ",\"comparison\":\"NotCompared: no verified damage snapshot\"");
             }
         }
+        public bool RecordBetaPreview(BetaSnapshot preview)
+        {
+            lock (gate)
+            {
+                if (!enabled || busy || preview == null) return false;
+                string rows = "[" + string.Join(",", preview.Rows.Select(r => "{\"index\":" + r.Index + ",\"penalty\":" + r.Penalty
+                    + ",\"ab\":" + r.AB + ",\"ac\":" + r.AC + ",\"hit\":" + Number(r.Hit) + ",\"crit\":" + Number(r.Crit)
+                    + ",\"expectedRaw\":" + NullableNumber(r.ExpectedRaw) + "}").ToArray()) + "]";
+                return Emit(clock(), "beta-preview", preview.Id, preview.Context(), "\"previewId\":" + Quote(preview.Id)
+                    + ",\"betaActorId\":" + Quote(preview.Input.Actor) + ",\"betaTargetId\":" + Quote(preview.Input.Target) + ",\"betaWeaponId\":" + Quote(preview.Input.Weapon)
+                    + ",\"quality\":\"PartialEstimate\",\"basis\":\"cached-stats/basic-primary-weapon\",\"fullConditionsVerified\":false"
+                    + ",\"defensePartPresent\":" + Bool(preview.Input.DefensePartPresent) + ",\"afterDefenseAvailable\":false"
+                    + ",\"scopeNotes\":" + StringArray(preview.Notes) + ",\"rows\":" + rows);
+            }
+        }
+        public void RecordBetaComparison(BetaComparison comparison, DiagnosticContext actual, string rollEventId)
+        {
+            lock (gate)
+            {
+                if (!enabled || busy || comparison == null || actual == null) return;
+                Emit(clock(), "beta-comparison", comparison.Preview.Id, actual, "\"previewId\":" + Quote(comparison.Preview.Id)
+                    + ",\"betaActorId\":" + Quote(comparison.Preview.Input.Actor) + ",\"betaTargetId\":" + Quote(comparison.Preview.Input.Target) + ",\"betaWeaponId\":" + Quote(comparison.Preview.Input.Weapon)
+                    + ",\"rollEventId\":" + Quote(rollEventId) + ",\"status\":" + Quote(comparison.Status.ToString())
+                    + ",\"scope\":\"partial model inputs only\",\"fullConditionsVerified\":false"
+                    + ",\"predictedAB\":" + (comparison.Row == null ? "null" : comparison.Row.AB.ToString(CultureInfo.InvariantCulture))
+                    + ",\"predictedAC\":" + (comparison.Row == null ? "null" : comparison.Row.AC.ToString(CultureInfo.InvariantCulture))
+                    + ",\"actualAB\":" + comparison.ActualAB + ",\"actualAC\":" + comparison.ActualAC
+                    + ",\"actualRolls\":" + NullableNumber(comparison.ActualRolls) + ",\"actualSides\":" + NullableNumber(comparison.ActualSides)
+                    + ",\"actualBonus\":" + NullableNumber(comparison.ActualBonus)
+                    + ",\"predictedRolls\":" + comparison.Preview.Input.Rolls + ",\"predictedSides\":" + comparison.Preview.Input.Sides
+                    + ",\"predictedBonus\":" + comparison.Preview.Input.Bonus
+                    + ",\"differentFields\":" + StringArray(comparison.Differences)
+                    + ",\"comparedFields\":" + StringArray(comparison.ComparedFields)
+                    + ",\"warning\":\"Model difference may reflect omitted effects; not proof of a game bug. Random damage is not compared with expected damage.\"");
+            }
+        }
         void Prune(long now)
         { foreach (var key in pending.Where(p => now < p.Value.Time || now - p.Value.Time > 1000).Select(p => p.Key).ToArray()) pending.Remove(key); }
         bool Emit(long now, string kind, string id, DiagnosticContext c, string values)
@@ -231,6 +269,7 @@ namespace CombatPreview
             try
             {
                 sink("{\"schema\":2,\"sessionId\":" + Quote(sessionId) + ",\"recordSequence\":" + (++recordSequence)
+                    + ",\"rateLimitedRecords\":" + Dropped + ",\"ignoredSimulatedEvents\":" + IgnoredSimulated
                     + ",\"runtime\":" + runtimeMetadata + ",\"kind\":" + Quote(kind) + ",\"predictionId\":" + Quote(id)
                     + ",\"elapsedMs\":" + now + ",\"attacker\":" + Quote(c.Attacker) + ",\"target\":" + Quote(c.Target)
                     + ",\"weapon\":" + Quote(c.Weapon) + ",\"turn\":" + Quote(c.Turn) + ",\"scene\":" + Quote(c.Scene)
@@ -245,6 +284,7 @@ namespace CombatPreview
         static bool? Match(string a, string b) { return string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b) ? (bool?)null : a == b; }
         static string Bool(bool? b) { return b.HasValue ? (b.Value ? "true" : "false") : "null"; }
         static string Number(double d) { return d.ToString("R", CultureInfo.InvariantCulture); }
+        static string NullableNumber(double? d) { return d.HasValue ? Number(d.Value) : "null"; }
         static string StringArray(IEnumerable<string> values)
         {
             var copy = (values ?? new string[0]).Take(33).ToArray();

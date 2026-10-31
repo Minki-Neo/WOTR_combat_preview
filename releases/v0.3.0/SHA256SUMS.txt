@@ -1,0 +1,2 @@
+af900db4a1d38c450c066eed5eb6c3f413fd6a81aeffbfe6064270dc13d95a57  CombatPreview-0.3.0-beta-UMM.zip
+d51ebfb5a2d2aa94845767157f0a4cc3b6138fd7c5c21eaed573344765ca34be  CombatPreview-0.3.0-development-source.zip

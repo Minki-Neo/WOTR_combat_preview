@@ -30,6 +30,8 @@ namespace CombatPreview
         // Legacy prediction logging must never replay live rules.
         internal bool Logging => false;
         public bool LocalDiagnostics;
+        public bool CompareBeta = true;
+        public bool BetaAlerts;
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
@@ -42,6 +44,7 @@ namespace CombatPreview
         internal static UnityModManager.ModEntry.ModLogger Log;
         internal static Settings Settings;
         internal static PassiveAttackDiagnostics Diagnostics;
+        static BetaAttackHook betaHook;
         static bool diagnosticsRegistered;
         static readonly HashSet<string> s_Errors = new HashSet<string>();
 
@@ -51,7 +54,6 @@ namespace CombatPreview
             Settings = UnityModManager.ModSettings.Load<Settings>(modEntry);
             Settings.Enabled = false;
             Settings.ScenarioConfirmed = false;
-            Settings.ShowOnHover = false;
             modEntry.OnToggle = (e, enabled) =>
             {
                 Settings.Enabled = enabled && diagnosticsRegistered;
@@ -74,6 +76,10 @@ namespace CombatPreview
             {
                 Diagnostics = new PassiveAttackDiagnostics(Path.Combine(modEntry.Path, "CombatPreview.diagnostics.jsonl"));
                 EventBus.Subscribe(Diagnostics);
+                BetaRuntime.Initialize();
+                betaHook = new BetaAttackHook();
+                EventBus.Subscribe(betaHook);
+                HoverChance.Create();
                 diagnosticsRegistered = true;
                 Settings.Enabled = true;
             }
@@ -84,6 +90,11 @@ namespace CombatPreview
                 if (Diagnostics != null)
                     try { EventBus.Unsubscribe(Diagnostics); }
                     catch (Exception cleanup) { Error("diagnostics unsubscribe", cleanup); }
+                if (betaHook != null)
+                    try { EventBus.Unsubscribe(betaHook); }
+                    catch (Exception cleanup) { Error("beta hook unsubscribe", cleanup); }
+                HoverChance.DestroyOwned();
+                betaHook = null;
                 Diagnostics = null;
                 Error("Passive diagnostics registration failed", e);
             }
@@ -94,35 +105,31 @@ namespace CombatPreview
         {
             GUILayout.Label(Compatibility.Summary);
             foreach (var issue in Compatibility.Issues) GUILayout.Label(issue);
-            GUILayout.Label("Experimental build: game integration and state/RNG preservation are NOT validated.");
-            GUILayout.Label(PredictionSafety.BlockReason);
-            Settings.ShowOnHover = false;
+            GUILayout.Label("읽기 전용 베타: 기본 주무기 모델의 부분 추정입니다. 실제 게임 표시/비교는 베타 검증 중입니다.");
+            bool show = GUILayout.Toggle(Settings.ShowOnHover, "베타 무기 미리보기 켜기 (기본 OFF)");
+            if (show != Settings.ShowOnHover) { Settings.ShowOnHover = show && Compatibility.CanPreview; HoverChance.Invalidate(); }
+            Settings.CompareBeta = GUILayout.Toggle(Settings.CompareBeta, "표시 모델과 실제 AB/AC/무기 구성의 차이를 로컬 로그에 기록");
+            Settings.BetaAlerts = GUILayout.Toggle(Settings.BetaAlerts, "모델 차이 알림 표시 (미반영 효과일 수 있음; 팝업으로 전투를 막지 않음)");
+            GUILayout.Label("기본 반복 순서만 계산합니다. 가속/연타/보조손/탈것 추가 공격과 DR·저항·보호막 적용 피해는 미지원입니다.");
             bool localDiagnostics = GUILayout.Toggle(Settings.LocalDiagnostics, "Local passive attack diagnostics (no extra rules/dice; max 2 MiB)");
             if (localDiagnostics != Settings.LocalDiagnostics) { Settings.LocalDiagnostics = localDiagnostics; Diagnostics?.Reset(); }
-            GUILayout.Label("Diagnostics: observed attacks only; live prediction/condition fingerprint integration pending.");
+            GUILayout.Label("베타 차이 기록: " + BetaRuntime.DifferenceCount + " | 기대 피해와 한 번의 무작위 피해는 불일치로 판정하지 않습니다.");
             if (Settings.LocalDiagnostics && Diagnostics != null) GUILayout.Label(Diagnostics.Status);
-            GUILayout.Label("Panel/manual model settings below are inactive while hover preview is blocked.");
             Settings.Detailed = GUILayout.Toggle(Settings.Detailed, "Detailed attack rows");
             GUILayout.Label("Panel scale");
             Settings.Scale = GUILayout.HorizontalSlider(Settings.Scale, 0.7f, 1.6f);
             GUILayout.Label("Panel width");
             Settings.Width = GUILayout.HorizontalSlider(Settings.Width, 420, 850);
             if (GUILayout.Button("Reset panel position")) { Settings.X = 30; Settings.Y = 160; }
-            GUILayout.Label("Automatic target defense results are unavailable; the manual model is hypothetical.");
-            Settings.ManualScenario = GUILayout.Toggle(Settings.ManualScenario, "Manual defense scenario (NOT actual target defenses)");
+            GUILayout.Label("자동 방어 적용 피해는 계산 불가입니다. 수동 시나리오는 실제 대상 방어가 아닙니다.");
+            Settings.ManualScenario = GUILayout.Toggle(Settings.ManualScenario, "수동 물리 방어 시나리오 (실제 대상 방어 아님)");
             if (Settings.ManualScenario)
             {
                 Settings.ScenarioConfirmed = GUILayout.Toggle(Settings.ScenarioConfirmed, "I am entering effective, post-bypass values for a hypothetical target");
                 EditReduction("Effective physical DR", ref Settings.ScenarioDR);
-                EditReduction("Fire resistance", ref Settings.ScenarioFire);
-                EditReduction("Cold resistance", ref Settings.ScenarioCold);
-                EditReduction("Electricity resistance", ref Settings.ScenarioElectricity);
-                EditReduction("Acid resistance", ref Settings.ScenarioAcid);
-                EditReduction("Sonic resistance", ref Settings.ScenarioSonic);
                 Settings.ScenarioBypassDR = GUILayout.Toggle(Settings.ScenarioBypassDR, "Weapon bypasses physical DR in this scenario");
                 Settings.ScenarioPhysicalImmune = GUILayout.Toggle(Settings.ScenarioPhysicalImmune, "Physical immunity in scenario");
-                Settings.ScenarioFireImmune = GUILayout.Toggle(Settings.ScenarioFireImmune, "Fire immunity in scenario");
-                GUILayout.Label("Other reductions assumed zero in this MANUAL model. Pools, vulnerability and difficulty multipliers excluded.");
+                GUILayout.Label("현재 수동 모델은 기본 물리 피해만 계산합니다. 보호막·취약성·난이도 배율은 제외합니다.");
             }
         }
 

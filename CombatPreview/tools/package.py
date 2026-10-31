@@ -26,7 +26,7 @@ files = {
     **{name: root/name for name in ['Info.json', 'LICENSE', 'THIRD_PARTY.md', 'README.ko.md']},
     'DIAGNOSTICS.ko.md': root/'docs/DIAGNOSTICS.ko.md',
 }
-output = root/'dist'/f"CombatPreview-{info['Version']}-diagnostic-only-UMM.zip"
+output = root/'dist'/f"CombatPreview-{info['Version']}-beta-UMM.zip"
 output.parent.mkdir(exist_ok=True)
 # No shared staging directory: stale dependency/game DLLs cannot enter the ZIP.
 with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as z:
@@ -35,4 +35,4 @@ with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as z:
 with zipfile.ZipFile(output) as z:
     assert z.testzip() is None
     assert set(z.namelist()) == {'CombatPreview/'+name for name in files}
-print(f'Created diagnostic-only UMM package (game execution unverified): {output}')
+print(f'Created read-only beta UMM package (game UI execution unverified): {output}')
