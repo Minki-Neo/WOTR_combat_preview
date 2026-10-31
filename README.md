@@ -39,7 +39,7 @@ GitHub Release를 생성해도 ModFinder의 중앙 목록에 자동 등록되지
 프로젝트는 [CombatPreview](CombatPreview)에 있습니다. [설치/빌드 안내](CombatPreview/README.ko.md),
 [검증 기록](CombatPreview/docs/VALIDATION.md), [안전성 감사](CombatPreview/docs/SAFETY_AUDIT.md)를 확인하세요.
 실제 제공된 게임 DLL을 사용한 전체 net472 빌드, C# 6,837 assertions와 독립 Python 검사 509개가 통과했습니다.
-0.2.1의 사용자 로그에서 로드와 이벤트 관측을 확인했습니다. 0.2.2 재실행·정확도·상태/RNG 비간섭 검증은 별도입니다.
+0.2.1의 사용자 로그에서 로드와 이벤트 관측을 확인했습니다. 0.2.2 재실행에서도 게임 2.7.0x / UMM 0.33.3 / Harmony 2.0.4의 로드와 굴림 9건·피해 2건의 연결을 확인했습니다. 정확도·상태/RNG 비간섭 검증은 별도입니다.
 
 GitHub Release API 접근이 가능한 환경에서는 루트에서 `bash tools/publish_release.sh`로
 태그가 이미 게시된 v0.2.2의 진단용 prerelease와 파일을 생성할 수 있습니다.

@@ -99,3 +99,17 @@ blueprint backing field and its static UsePool field, without invoking virtual d
 The original 6,699 math assertions and 138 contract/diagnostic/safety assertions (**6,837 total**) pass.
 Independent Python checks: 509; WOTR syntax: 25 source/test files. Whole net472 compilation uses the same real
 provided game/UMM references. 0.2.2 itself has not yet run in the user's game.
+
+### Subsequent 0.2.2 user execution evidence
+
+A second supplied JSONL appends 11 schema-2 rows after the exact previous 64 schema-1 rows. The new session
+contains 9 associated weapon rolls (6 full-attack roll rows), 2 hits and 2 linked damage records; no missing links,
+duplicate IDs, unassociated roll rows or clipped evidence. Record sequences are contiguous 1–11 and runtime
+metadata agrees across all rows: game **2.7.0x**, mod 0.2.2.0, UMM 0.33.3.0, Harmony 2.0.4.0, game MVID
+90a9869c-2792-4c7b-bfb7-5a8b33da7c82, TTT assembly detection False. This confirms those versions loaded
+together for the observed callbacks, not all possible Harmony/UMM APIs or gameplay behavior.
+
+Both new damage targets had no existing reduction part. Nonempty DR/energy/pool extraction and all state/RNG
+acceptance tests remain unverified. The analyzer now separates cumulative vs per-session results. It was exercised
+on the supplied old/new files, a cross-session duplicate object-ID case, a record-sequence gap and interleaved session
+ordering. No runtime C# code, DLL, installer or version was changed for this analysis-tool/documentation update.

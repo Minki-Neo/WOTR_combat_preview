@@ -58,8 +58,37 @@ def summarize(rows):
     }
 
 
+def summarize_file(rows):
+    # A game restart appends to the existing file. Report each identified session
+    # separately so legacy failures are not attributed to the latest mod build.
+    groups = {}
+    for row in rows:
+        groups.setdefault(row.get('sessionId'), []).append(row)
+    sessions = []
+    runtime_keys = ('modVersion', 'gameVersion', 'gameAssemblyMvid', 'ummVersion', 'harmonyVersion', 'tttAssemblyDetected')
+    for session_id, group in groups.items():
+        variants = {}
+        for row in group:
+            runtime = {k: row.get('runtime', {}).get(k) for k in runtime_keys if k in row.get('runtime', {})}
+            if runtime:
+                variants.setdefault(json.dumps(runtime, sort_keys=True), runtime)
+        sequence = [r.get('recordSequence') for r in group]
+        contiguous = None if not session_id else (
+            all(type(n) is int and n > 0 for n in sequence)
+            and all(b == a + 1 for a, b in zip(sequence, sequence[1:])))
+        sessions.append({
+            'sessionId': session_id, 'summary': summarize(group),
+            'runtimeMetadata': list(variants.values()),
+            'runtimeMetadataConsistent': bool(variants) and len(variants) == 1,
+            'recordSequenceContiguous': contiguous,
+        })
+    latest_id = next((r.get('sessionId') for r in reversed(rows) if r.get('sessionId')), None)
+    return {**summarize(rows), 'sessions': sessions,
+            'latestIdentifiedSession': next((s for s in sessions if s['sessionId'] == latest_id), None) if latest_id else None}
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('input', type=Path)
     args = parser.parse_args()
-    print(json.dumps(summarize(read_rows(args.input)), ensure_ascii=False, indent=2))
+    print(json.dumps(summarize_file(read_rows(args.input)), ensure_ascii=False, indent=2))
