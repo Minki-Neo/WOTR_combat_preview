@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><DefineConstants>WOTR</DefineConstants><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup><Compile Include="../src/DamageMath.cs"/><Compile Include="../src/MitigationMath.cs"/><Compile Include="Program.cs"/><Compile Include="../src/D20.cs"/><Compile Include="../src/D20Modifier.cs"/><Compile Include="../src/DefenseContracts.cs"/><Compile Include="../src/PredictionReport.cs"/><Compile Include="../src/PredictionSafety.cs"/><Compile Include="../src/Diagnostics.cs"/><Compile Include="ContractTests.cs"/></ItemGroup>
+</Project>

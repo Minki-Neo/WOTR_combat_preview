@@ -1,0 +1,83 @@
+# Validation — 0.2.1 development / diagnostic-only
+
+Date: 2026-11-01 (Asia/Seoul). This records commands actually executed in the cloud instance.
+No game executable, Unity asset data, user save or interactive game session was supplied/run.
+
+## Inputs and environment
+
+- OS: Debian GNU/Linux 13 (trixie), Linux x86_64.
+- .NET SDK: 8.0.408. SDK archive SHA-512 matched the official release metadata during setup.
+- Python 3.12; tree-sitter 0.25.2; tree-sitter-c-sharp 0.23.1.
+- Original source ZIP SHA-256: `4ad6fa8d567883140588f28c985ae341d6e79a28baf5781d376696ee3176c4c7` (matches handoff).
+- Empty GitHub checkout was populated from that exact ZIP, retaining original LICENSE and THIRD_PARTY notices.
+  No Git commit, push, PR or external publication was performed. Original attachment and baseline extraction remain intact.
+- User reports ModFinder management and no TTT. Full installed mod list/settings are not known.
+
+Uploaded DLLs were inspected with metadata readers and ILSpy 9.1.0.7988; they were not executed as applications.
+No game or decompiled source is included in the source/UMM ZIPs.
+
+| Input | Metadata / identity | SHA-256 |
+|---|---|---|
+| Assembly-CSharp.dll | assembly 0.0.0.0; MVID 90a9869c-2792-4c7b-bfb7-5a8b33da7c82 | `2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953` |
+| game 0Harmony.dll | 2.0.4.0; MVID 88b084d2-77f3-44aa-9c29-04c640976875 | `de50cd610ea22854c8930ec5433276713aee1bb0ecd785d6b15a0661c2fa9fd5` |
+| UnityModManager.dll | 0.33.3 / informational 0.33.3+c41c0787062ebb1def95239c9647191073f35500 | `e0b97c482ec2bf66cb97e0a671a562bbe8501b6ed22df2aa03222137f16a35aa` |
+| ModFinder.dll | 1.5.3 / .NETCoreApp 8.0 / Windows WPF references | `77c4435a3cb711d543fd8d02d3936805674dc111d2fbe8ffd3a2c9286b9c088e` |
+
+The game display version cannot be established from the AssemblyVersion (0.0.0.0).
+Static inspection shows GameVersion.GetVersion loads a Unity `Version` resource. Runtime logging is needed to
+identify the user's actual display version. No release is declared supported merely because it is called latest.
+UMM references Harmony 2.3.6.0, while the supplied game Managed folder contains Harmony 2.0.4.0. Compilation
+succeeded against the supplied set; the actual loaded/runtime binding still needs verification. No DLL was replaced.
+
+## Commands and outcomes
+
+Working directory: `/workspace/WOTR_combat_preview/CombatPreview`.
+Shell activation: `export PATH=/workspace/tooling/dotnet:$PATH; export DOTNET_CLI_HOME=/workspace/tooling/dotnet-home`.
+Python checks used `/workspace/tooling/python/bin/python`.
+
+| Command | Actual outcome | Exit |
+|---|---|---|
+| `dotnet run --project tests/CombatPreview.Tests.csproj -c Release` on original sources | 6,699 assertions passed (baseline, now actually executed) | 0 |
+| same command on updated sources | 6,699 original math assertions + 109 defense/quality/diagnostic/safety assertions = **6,808** passed | 0 |
+| `python tests/reference_check.py` | 509 independent math/manifest checks; 2 project XML files parsed | 0 |
+| `python tests/syntax_check.py` | WOTR parse for 25 source/test C# files; generated bin/obj excluded | 0 |
+| `dotnet build CombatPreview.csproj -c Release -p:ManagedDir=/workspace/game-references/Managed -p:UmmDir=/workspace/game-references/UMM` | full net472 mod build using actual provided game/Unity/Harmony/UMM references; 0 errors; one existing unused Charge-field warning on compilation | 0 |
+| `dotnet run --project tests/CombatPreview.Tests.csproj -c Release -- --diagnostic-fixture docs/examples/diagnostic-fixture.jsonl` | generated explicitly labeled fixture report, not game observations | 0 |
+| `python3 tools/package.py --managed-dir /workspace/game-references/Managed --umm-dir /workspace/game-references/UMM` | full build + exact 6-file diagnostic-only UMM ZIP; CRC/allowlist verification | 0 |
+| `bash /workspace/tooling/refresh.sh` | saved reusable dependency/test/full-build procedure executed successfully | 0 |
+
+Initial full build without game references failed at CheckGameReferences as expected. After the user's Managed.zip
+and UMM were supplied, that prerequisite was resolved and the actual full build succeeded. No game stubs were used.
+The original test fixture compilation has unused D20Modifier-field warnings because it excludes game-linked handlers;
+these are warnings, not test failures. Required assertions did execute; no tests were disabled/skipped to pass.
+PowerShell packaging was updated for fresh temporary staging but not executed in this Linux environment; the Python
+build/packaging path above was executed. ModFinder itself was not launched (Windows application).
+
+## Coverage and concrete behavior
+
+- Original deterministic dice distributions, unconditional hit/crit weighting and static typed mitigation.
+- Fixture DR maximum vs explicit stacking, AND/OR and enhancement-threshold bypass, typed immunity, snapshot copies.
+- Incomplete observation, unknown rules/types/traits, suppression, unsupported pools/modifiers and mixed bypass refusal.
+- Aggregate unavailable/missing/mixed rows do not produce a full-attack number; partial quality remains partial.
+- Diagnostic OFF, complete-condition deterministic comparisons, state/turn/TTL/clock invalidation, manual refusal,
+  duplicate suppression, roll-to-damage IDs, valid Unicode JSONL, rate limiting, byte rotation, reentrancy and disk failure.
+- Legacy replay gate and d20 >8/invalid-input refusal.
+
+These tests exercise original and new pure C# code. They do NOT instantiate game targets or validate live adapters.
+The manual model `1d8+15 physical + 1d6 fire`, DR10/fire5, Hit=.75/Crit=.075 still yields **8.7125**.
+One random actual damage sample is never compared with that expectation to infer mismatch.
+
+## Explicitly unverified / outstanding
+
+- UMM load/event subscription/partial failure/disable/enable, ModFinder installation and in-game diagnostic output.
+- No in-game numerical accuracy, UI rendering/input, target/buff/turn changes or full state/RNG preservation proof.
+- Hover preview is unconditionally blocked; no live prediction comparison or automatic effective target defense support.
+- Vanilla cached-field capture is a compiled draft; observed cached numbers are incomplete evidence only.
+- TTT has fixture contracts only, no live reader or activation verification. User currently does not use TTT.
+- Sneak/conditional on-hit effects, mount damage totals, vulnerability/difficulty semantics and sequential pools remain unsupported.
+- No game session or remote publication. Environment draft persistence is separate from publication/new-task restoration.
+
+Next input: an actual game test environment/session with a user-approved test save, full current mod configuration,
+and runtime UMM/CombatPreview logs (including exact game display version and loaded Harmony/MVID).
+Existing provided DLLs are retained privately under `/workspace/game-references`; they do not need to be supplied again
+in this workspace. Follow RUNTIME_TEST_PLAN.ko.md; do not turn a blocked feature into a passed test.

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>CombatPreview</AssemblyName>
+    <Version>0.2.1</Version>
+    <DefineConstants>WOTR</DefineConstants>
+    <LangVersion>latest</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <ManagedDir Condition="'$(ManagedDir)' == ''">$(GameDir)/Wrath_Data/Managed</ManagedDir>
+    <UmmDir Condition="'$(UmmDir)' == ''">$(ManagedDir)/UnityModManager</UmmDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="src/*.cs;src/wotr/*.cs"/>
+    <Reference Include="$(ManagedDir)/*.dll" Exclude="$(ManagedDir)/mscorlib.dll;$(ManagedDir)/netstandard.dll;$(ManagedDir)/System*.dll;$(ManagedDir)/Microsoft*.dll"><Private>false</Private></Reference>
+    <Reference Include="$(UmmDir)/UnityModManager.dll"><Private>false</Private></Reference>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+  </ItemGroup>
+  <Target Name="CheckGameReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(ManagedDir)/Assembly-CSharp.dll')" Text="Supply -p:GameDir=your WotR folder; proprietary game references are not included."/>
+    <Error Condition="!Exists('$(UmmDir)/UnityModManager.dll')" Text="Install UMM or supply -p:UmmDir=its assembly folder."/>
+    <Error Condition="!Exists('$(ManagedDir)/0Harmony.dll')" Text="Expected the game-shipped Managed/0Harmony.dll. Check the game version."/>
+  </Target>
+</Project>
