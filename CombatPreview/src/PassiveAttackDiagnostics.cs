@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Linq;
+using System.Collections.Generic;
 using Kingmaker;
 using Kingmaker.PubSubSystem;
 using Kingmaker.RuleSystem.Rules;
@@ -21,9 +22,20 @@ namespace CombatPreview
         long nextId;
         bool active;
         internal PassiveAttackDiagnostics(string path)
-        { var log = new LocalDiagnosticLog(path); recorder = new DiagnosticRecorder(log.Write, () => clock.ElapsedMilliseconds); }
+        {
+            var log = new LocalDiagnosticLog(path); recorder = new DiagnosticRecorder(log.Write, () => clock.ElapsedMilliseconds);
+            recorder.SetRuntimeMetadata(new Dictionary<string, string> {
+                { "modVersion", typeof(Main).Assembly.GetName().Version.ToString() },
+                { "gameVersion", Compatibility.GameVersion },
+                { "gameAssemblyMvid", typeof(RuleAttackRoll).Module.ModuleVersionId.ToString() },
+                { "ummVersion", typeof(UnityModManagerNet.UnityModManager).Assembly.GetName().Version.ToString() },
+                { "harmonyVersion", typeof(HarmonyLib.Harmony).Assembly.GetName().Version.ToString() },
+                { "tttAssemblyDetected", Compatibility.HasTabletopTweaks.ToString() }
+            });
+        }
         internal void Reset() { recorder.Enabled = false; active = false; }
-        internal string Status { get { return recorder.Faulted ? "Stopped after a file write failure" : "Dropped by rate limit: " + recorder.Dropped; } }
+        internal string Status { get { return recorder.Faulted ? "Stopped after a file write failure"
+            : "Dropped by rate limit: " + recorder.Dropped + " | Ignored simulated events: " + recorder.IgnoredSimulated; } }
         bool CanObserve()
         {
             bool enabled = Main.Settings != null && Main.Settings.Enabled && Main.Settings.LocalDiagnostics;
@@ -40,12 +52,14 @@ namespace CombatPreview
             try
             {
                 if (evt == null || evt.Initiator == null || evt.Target == null || DryRun.Active) return;
+                if (evt.IsFake) { recorder.IgnoreSimulated(); return; }
                 var context = Context(evt);
                 // This observer does not know the complete condition revision or
                 // applied damage. Leave them absent, never label them comparable.
                 recorder.Observe(Id(evt), new ActualAttackObservation(context, evt.AttackBonus, evt.TargetAC,
                     GameRules.Die(evt) > 0, evt.IsHit, penalty: evt.AttackBonusPenalty,
-                    fullAttack: evt.RuleAttackWithWeapon?.IsFullAttack, criticalConfirmed: evt.IsCriticalConfirmed));
+                    fullAttack: evt.RuleAttackWithWeapon?.IsFullAttack, criticalConfirmed: evt.IsCriticalConfirmed,
+                    hasWeaponAttack: evt.RuleAttackWithWeapon != null));
             }
             catch (Exception e)
             {
@@ -73,11 +87,13 @@ namespace CombatPreview
                 // Only already-completed weapon-associated events. No RuleDealDamage
                 // is constructed or invoked here, including for a diagnostic test.
                 var roll = evt?.AttackRoll;
-                if (roll == null || roll.Initiator == null || roll.Target == null || evt.IsFake || DryRun.Active) return;
+                if (roll == null || roll.Initiator == null || roll.Target == null || DryRun.Active) return;
+                if (evt.IsFake || roll.IsFake) { recorder.IgnoreSimulated(); return; }
                 var context = Context(roll, evt.Initiator, evt.Target);
                 var defense = DefenseReader.Read(evt.Target, context.Target);
-                string evidence = string.Join("; ", defense.Missing.Concat(defense.ObservedDetails).ToArray());
-                recorder.RecordDamage(Id(evt), Id(roll), context, evt.Result, evt.RawResult, evt.DamageBeforeDifficulty, evidence);
+                recorder.RecordDamage(Id(evt), Id(roll), context, evt.Result, evt.RawResult, evt.DamageBeforeDifficulty,
+                    "Incomplete cached defense evidence; see defenseMissing/defenseObserved", defense.Missing, defense.ObservedDetails,
+                    roll.RuleAttackWithWeapon != null);
             }
             catch (Exception e)
             {

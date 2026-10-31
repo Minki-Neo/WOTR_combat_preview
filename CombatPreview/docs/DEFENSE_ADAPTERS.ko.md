@@ -1,4 +1,4 @@
-# 방어 어댑터와 정확도 계약 — 0.2.1
+# 방어 어댑터와 정확도 계약 — 0.2.2
 
 `DefenseContracts.cs`는 게임 객체 없는 순수 값 계약입니다. `DefenseObservation` 입력을 두 제공자
 `VanillaDefenseSnapshotProvider` / `TabletopTweaksDefenseSnapshotProvider`가 투영합니다.
@@ -33,3 +33,7 @@ RAW, TARGET, MANUAL 출처를 섞지 않습니다. 행이 하나라도 없거나
 다르면 전체 합계를 내지 않습니다. 부분 추정의 합계는 부분 추정으로 남습니다. 수동 시나리오의
 다른 유형 저항 0 가정은 명시된 수동 모델에서만 허용됩니다. 확인 체크는 세션마다 초기화됩니다.
 현재 패널은 차단되어 있으므로 보고서/UI 소스가 컴파일됐다는 사실과 게임 화면 검증을 구분해야 합니다.
+
+0.2.2에서는 런타임의 SourceBlueprintComponent backing field에서 정적 UsePool 필드를 읽습니다.
+기본 게임의 m_RemainPool은 UsePool=false인 경우도 초기화되므로 양수만으로 보호막으로 분류하지 않습니다.
+플래그 미상은 Unknown, UsePool=true/잔량0은 고갈된 Present입니다. 어떤 값도 live SpendPool/가상 계산 함수를 호출해 얻지 않습니다.

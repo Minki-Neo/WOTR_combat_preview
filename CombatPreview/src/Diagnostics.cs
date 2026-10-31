@@ -69,9 +69,12 @@ namespace CombatPreview
         public int? Penalty { get; private set; }
         public bool? FullAttack { get; private set; }
         public bool? CriticalConfirmed { get; private set; }
+        public bool IsFake { get; private set; }
+        public bool HasWeaponAttack { get; private set; }
         public ActualAttackObservation(DiagnosticContext context, int ab, int ac, bool rolled, bool hit,
             double? damage = null, string damageSignature = null, string reductionsSignature = null,
-            int? penalty = null, bool? fullAttack = null, bool? criticalConfirmed = null)
+            int? penalty = null, bool? fullAttack = null, bool? criticalConfirmed = null,
+            bool isFake = false, bool hasWeaponAttack = false)
         {
             if (context == null) throw new ArgumentNullException("context");
             if (damage.HasValue && (double.IsNaN(damage.Value) || double.IsInfinity(damage.Value) || damage < 0))
@@ -79,9 +82,10 @@ namespace CombatPreview
             Context = context; AttackBonus = ab; TargetAC = ac; Rolled = rolled; Hit = hit;
             Damage = damage; DamageSignature = damageSignature; ReductionsSignature = reductionsSignature;
             Penalty = penalty; FullAttack = fullAttack; CriticalConfirmed = criticalConfirmed;
+            IsFake = isFake; HasWeaponAttack = hasWeaponAttack;
         }
     }
-    public enum ComparisonStatus { NoPrediction, ConditionsChanged, SnapshotExpired, ManualScenario, UnverifiableConditions, Compared }
+    public enum ComparisonStatus { NoPrediction, ConditionsChanged, SnapshotExpired, ManualScenario, UnverifiableConditions, Compared, UnassociatedRoll }
     public sealed class DiagnosticComparison
     {
         public ComparisonStatus Status { get; internal set; }
@@ -100,18 +104,36 @@ namespace CombatPreview
         readonly Action<string> sink;
         readonly Func<long> clock;
         readonly object gate = new object();
+        readonly string sessionId;
+        string runtimeMetadata = "{}";
         bool enabled, busy;
-        long sequence, window = long.MinValue;
+        long sequence, recordSequence, window = long.MinValue;
         int written;
         public bool Faulted { get; private set; }
         public int Dropped { get; private set; }
+        public int IgnoredSimulated { get; private set; }
         public bool Enabled
         {
             get { lock (gate) return enabled; }
             set { lock (gate) { enabled = value && !Faulted; pending.Clear(); seen.Clear(); seenOrder.Clear(); } }
         }
-        public DiagnosticRecorder(Action<string> sink, Func<long> clock)
-        { this.sink = sink ?? throw new ArgumentNullException("sink"); this.clock = clock ?? throw new ArgumentNullException("clock"); }
+        public DiagnosticRecorder(Action<string> sink, Func<long> clock, string sessionId = null)
+        {
+            this.sink = sink ?? throw new ArgumentNullException("sink"); this.clock = clock ?? throw new ArgumentNullException("clock");
+            // OS-generated ID; does not touch Unity or the game's RNG.
+            this.sessionId = sessionId ?? Guid.NewGuid().ToString("N");
+            if (string.IsNullOrWhiteSpace(this.sessionId) || this.sessionId.Length > 128) throw new ArgumentException("Invalid session ID");
+        }
+        public void SetRuntimeMetadata(IDictionary<string, string> values)
+        {
+            lock (gate)
+            {
+                runtimeMetadata = "{" + string.Join(",", (values ?? new Dictionary<string, string>()).Take(16)
+                    .Select(p => Quote(p.Key) + ":" + Quote(p.Value)).ToArray()) + "}";
+            }
+        }
+        public void IgnoreSimulated()
+        { lock (gate) { if (enabled) IgnoredSimulated++; } }
         public void Invalidate()
         { lock (gate) { pending.Clear(); } }
         public string RecordPrediction(DiagnosticPrediction prediction)
@@ -140,13 +162,15 @@ namespace CombatPreview
         {
             lock (gate)
             {
+                if (enabled && !busy && actual != null && actual.IsFake) { IgnoredSimulated++; return null; }
                 if (!enabled || busy || actual == null || string.IsNullOrEmpty(eventId) || !seen.Add(eventId)) return null;
                 seenOrder.Enqueue(eventId);
                 if (seenOrder.Count > 256) seen.Remove(seenOrder.Dequeue());
                 var result = new DiagnosticComparison { Status = ComparisonStatus.NoPrediction };
                 long now = clock(); Pending p;
                 string id = "";
-                if (pending.TryGetValue(actual.Context.Slot, out p))
+                if (!actual.HasWeaponAttack) result.Status = ComparisonStatus.UnassociatedRoll;
+                else if (pending.TryGetValue(actual.Context.Slot, out p))
                 {
                     pending.Remove(actual.Context.Slot); id = p.Id;
                     if (now < p.Time || now - p.Time > 1000) result.Status = ComparisonStatus.SnapshotExpired;
@@ -165,7 +189,8 @@ namespace CombatPreview
                     }
                 }
                 Prune(now);
-                Emit(now, "observation", id, actual.Context, "\"eventId\":" + Quote(eventId)
+                Emit(now, actual.HasWeaponAttack ? "observation" : "unassociated-observation", id, actual.Context, "\"eventId\":" + Quote(eventId)
+                    + ",\"isFake\":false,\"hasWeaponAttack\":" + Bool(actual.HasWeaponAttack)
                     + ",\"status\":" + Quote(result.Status.ToString()) + ",\"ab\":" + actual.AttackBonus + ",\"ac\":" + actual.TargetAC
                     + ",\"rolled\":" + Bool(actual.Rolled) + ",\"hit\":" + Bool(actual.Hit)
                     + ",\"penalty\":" + (actual.Penalty.HasValue ? actual.Penalty.Value.ToString(CultureInfo.InvariantCulture) : "null")
@@ -178,7 +203,8 @@ namespace CombatPreview
             }
         }
         public void RecordDamage(string eventId, string rollEventId, DiagnosticContext context,
-            int reportedDamage, int rawDamage, int beforeDifficulty, string defenseEvidence)
+            int reportedDamage, int rawDamage, int beforeDifficulty, string defenseEvidence,
+            IEnumerable<string> defenseMissing = null, IEnumerable<string> defenseObserved = null, bool hasWeaponAttack = false)
         {
             lock (gate)
             {
@@ -188,7 +214,10 @@ namespace CombatPreview
                 Emit(clock(), "damage-observation", "", context, "\"eventId\":" + Quote(eventId)
                     + ",\"rollEventId\":" + Quote(rollEventId) + ",\"reportedDamage\":" + reportedDamage
                     + ",\"rawDamage\":" + rawDamage + ",\"beforeDifficulty\":" + beforeDifficulty
+                    + ",\"hasWeaponAttack\":" + Bool(hasWeaponAttack)
                     + ",\"defenseEvidence\":" + Quote(defenseEvidence)
+                    + ",\"defenseMissing\":" + StringArray(defenseMissing)
+                    + ",\"defenseObserved\":" + StringArray(defenseObserved)
                     + ",\"comparison\":\"NotCompared: no verified damage snapshot\"");
             }
         }
@@ -201,7 +230,8 @@ namespace CombatPreview
             busy = true;
             try
             {
-                sink("{\"schema\":1,\"kind\":" + Quote(kind) + ",\"predictionId\":" + Quote(id)
+                sink("{\"schema\":2,\"sessionId\":" + Quote(sessionId) + ",\"recordSequence\":" + (++recordSequence)
+                    + ",\"runtime\":" + runtimeMetadata + ",\"kind\":" + Quote(kind) + ",\"predictionId\":" + Quote(id)
                     + ",\"elapsedMs\":" + now + ",\"attacker\":" + Quote(c.Attacker) + ",\"target\":" + Quote(c.Target)
                     + ",\"weapon\":" + Quote(c.Weapon) + ",\"turn\":" + Quote(c.Turn) + ",\"scene\":" + Quote(c.Scene)
                     + ",\"attackIndex\":" + c.AttackIndex + ",\"conditionRevision\":" + Quote(c.ConditionRevision)
@@ -215,6 +245,13 @@ namespace CombatPreview
         static bool? Match(string a, string b) { return string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b) ? (bool?)null : a == b; }
         static string Bool(bool? b) { return b.HasValue ? (b.Value ? "true" : "false") : "null"; }
         static string Number(double d) { return d.ToString("R", CultureInfo.InvariantCulture); }
+        static string StringArray(IEnumerable<string> values)
+        {
+            var copy = (values ?? new string[0]).Take(33).ToArray();
+            var limited = copy.Take(32).Select(Quote).ToList();
+            if (copy.Length > 32) limited.Add(Quote("[additional entries truncated]"));
+            return "[" + string.Join(",", limited.ToArray()) + "]";
+        }
         internal static string Quote(string text)
         {
             if (text == null) return "null";

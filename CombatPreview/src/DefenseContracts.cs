@@ -8,6 +8,21 @@ namespace CombatPreview
     public enum SnapshotOrigin { Unavailable, Fixture, Target, Manual }
     public enum PredictionQuality { SupportedModel, PartialEstimate, Unavailable }
     public enum BypassOperator { Never, Trait, All, Any }
+    public enum ProtectionPoolPresence { Unknown, Absent, Present }
+
+    public sealed class ProtectionPoolSnapshot
+    {
+        public ProtectionPoolPresence Presence { get; private set; }
+        public int? Remaining { get; private set; }
+        public ProtectionPoolSnapshot(bool? usePool, int? remainingPoolField)
+        {
+            // The game's runtime initializes its pool field even for non-pool
+            // defenses. Only the blueprint UsePool flag establishes a pool.
+            Presence = !usePool.HasValue ? ProtectionPoolPresence.Unknown
+                : usePool.Value ? ProtectionPoolPresence.Present : ProtectionPoolPresence.Absent;
+            Remaining = Presence == ProtectionPoolPresence.Present && remainingPoolField >= 0 ? remainingPoolField : null;
+        }
+    }
 
     // Input observations contain value data only, never Unity/fact/runtime objects.
     // Traits use explicit names (e.g. material:adamantine, enhancement:3,

@@ -4,6 +4,7 @@ using System.Reflection;
 using HarmonyLib;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Parts;
+using Kingmaker.UnitLogic.FactLogic;
 
 namespace CombatPreview
 {
@@ -48,9 +49,15 @@ namespace CombatPreview
                 object applied = Field(type, "<AppliedReduction>k__BackingField", chunk);
                 object runtime = Field(type, "<DR>k__BackingField", chunk);
                 object pool = runtime == null ? null : Field(runtime.GetType(), "m_RemainPool", runtime);
+                var settings = runtime == null ? null : Field(runtime.GetType(), "<SourceBlueprintComponent>k__BackingField", runtime) as AddDamageResistanceBase;
+                bool? usePool = settings == null ? (bool?)null : settings.UsePool;
+                var poolSnapshot = new ProtectionPoolSnapshot(usePool, pool as int?);
                 o.ObservedDetails.Add("UNVERIFIED cached chunk: reduction=" + (value ?? "unknown")
-                    + ", applied=" + (applied ?? "unknown") + ", remainingPoolField=" + (pool ?? "unknown"));
-                if (pool is int && (int)pool > 0) o.HasConsumablePool = true;
+                    + ", applied=" + (applied ?? "unknown") + ", usePool=" + (usePool.HasValue ? usePool.Value.ToString() : "unknown")
+                    + ", poolPresence=" + poolSnapshot.Presence + ", remainingPoolField=" + (pool ?? "unknown")
+                    + ", component=" + (settings == null ? "unknown" : settings.GetType().FullName));
+                if (poolSnapshot.Presence == ProtectionPoolPresence.Present) o.HasConsumablePool = true;
+                if (poolSnapshot.Presence == ProtectionPoolPresence.Unknown) o.Missing.Add("Pool usage flag is unavailable; cached pool amount is not proof of a pool");
                 // Never assign Kind/reduction/bypass from cached numbers alone.
             }
             foreach (object immunity in immunities)

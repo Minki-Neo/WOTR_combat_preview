@@ -27,7 +27,7 @@ static class ContractTests
     static readonly VanillaDefenseSnapshotProvider Vanilla = new VanillaDefenseSnapshotProvider();
     public static void Run()
     {
-        DefenseFixtures(); QualityFixtures(); DiagnosticsFixtures(); SafetyAndBoundaries();
+        DefenseFixtures(); QualityFixtures(); DiagnosticsFixtures(); DiagnosticRegressionFixtures(); SafetyAndBoundaries();
         Console.WriteLine("PASS: " + checks + " defense/quality/diagnostic/safety assertions (fixtures, not game integration)");
     }
     static void DefenseFixtures()
@@ -122,7 +122,7 @@ static class ContractTests
     static DiagnosticPrediction Prediction(DiagnosticContext c, SnapshotOrigin origin = SnapshotOrigin.Fixture)
     { return new DiagnosticPrediction(c, 22, 28, 0, .75, .075, 6, 14, "physical:1d8+15;fire:1d6", "fixture:DR10/fire5", "physical10;fire5", origin); }
     static ActualAttackObservation Actual(DiagnosticContext c, double damage = 7)
-    { return new ActualAttackObservation(c, 22, 28, true, true, damage, "physical:1d8+15;fire:1d6", "physical10;fire5", 0, true, false); }
+    { return new ActualAttackObservation(c, 22, 28, true, true, damage, "physical:1d8+15;fire:1d6", "physical10;fire5", 0, true, false, hasWeaponAttack: true); }
     static void DiagnosticsFixtures()
     {
         long now = 0; var lines = new List<string>();
@@ -134,7 +134,7 @@ static class ContractTests
         Check(result.Status == ComparisonStatus.Compared && result.AttackBonusMatches == true && result.ArmorClassMatches == true
             && result.DamageComponentsMatch == true && result.ReductionsMatch == true, "deterministic fields compared independently of random damage");
         Check(lines.Count == 2 && id != null, "traceable prediction and actual pair");
-        foreach (var line in lines) using (var doc = JsonDocument.Parse(line)) Check(doc.RootElement.GetProperty("schema").GetInt32() == 1, "valid JSONL record");
+        foreach (var line in lines) using (var doc = JsonDocument.Parse(line)) Check(doc.RootElement.GetProperty("schema").GetInt32() == 2, "valid JSONL record");
         using (var doc = JsonDocument.Parse(lines.Last()))
             Check(doc.RootElement.GetProperty("penalty").GetInt32() == 0 && doc.RootElement.GetProperty("fullAttack").GetBoolean(), "observed attack conditions retained");
         Check(r.Observe("a", Actual(Context())) == null && lines.Count == 2, "duplicate observed event ignored");
@@ -161,11 +161,11 @@ static class ContractTests
         r.Invalidate();
         Check(r.Observe("h", Actual(Context())).Status == ComparisonStatus.NoPrediction, "scene/action invalidation clears pending");
         r.RecordPrediction(Prediction(Context()));
-        var mismatch = r.Observe("i", new ActualAttackObservation(Context(), 23, 29, true, false, 0, "different damage", "different DR"));
+        var mismatch = r.Observe("i", new ActualAttackObservation(Context(), 23, 29, true, false, 0, "different damage", "different DR", hasWeaponAttack: true));
         Check(mismatch.AttackBonusMatches == false && mismatch.ArmorClassMatches == false && mismatch.DamageComponentsMatch == false && mismatch.ReductionsMatch == false,
             "deterministic discrepancy reported");
         now = 2002; r.RecordPrediction(Prediction(Context()));
-        var automatic = r.Observe("j", new ActualAttackObservation(Context(), 99, 99, false, true));
+        var automatic = r.Observe("j", new ActualAttackObservation(Context(), 99, 99, false, true, hasWeaponAttack: true));
         Check(!automatic.AttackBonusMatches.HasValue && !automatic.ArmorClassMatches.HasValue && !automatic.DamageComponentsMatch.HasValue, "automatic/unknown fields not compared");
         var weird = new DiagnosticContext("a\"\n\\\u0000한글😀", "b", "c", "d", "e", 0, "f", true);
         r.RecordPrediction(Prediction(weird));
@@ -206,6 +206,63 @@ static class ContractTests
         }
         finally { Directory.Delete(folder, true); }
     }
+    static void DiagnosticRegressionFixtures()
+    {
+        // Regression: AddDamageResistanceBase initializes m_RemainPool for
+        // non-pool components too; positive cache is NOT proof of a shield.
+        var noPool = new ProtectionPoolSnapshot(false, 12);
+        Check(noPool.Presence == ProtectionPoolPresence.Absent && !noPool.Remaining.HasValue, "unused positive pool cache is not consumable protection");
+        var unknown = new ProtectionPoolSnapshot(null, 12);
+        Check(unknown.Presence == ProtectionPoolPresence.Unknown && !unknown.Remaining.HasValue, "unknown UsePool does not infer presence");
+        var empty = new ProtectionPoolSnapshot(true, 0);
+        Check(empty.Presence == ProtectionPoolPresence.Present && empty.Remaining == 0, "empty pool remains a pool");
+        Check(new ProtectionPoolSnapshot(true, 7).Remaining == 7, "verified pool flag retains observed balance");
+        Check(!new ProtectionPoolSnapshot(true, -1).Remaining.HasValue, "negative balance is unavailable");
+        var rows = new List<string>(); long now = 0;
+        var r = new DiagnosticRecorder(rows.Add, () => now, "fixture-session-a") { Enabled = true };
+        var metadata = new Dictionary<string, string> { { "gameVersion", "fixture-game" }, { "harmonyVersion", "fixture-harmony" } };
+        r.SetRuntimeMetadata(metadata); metadata["gameVersion"] = "changed";
+        r.RecordPrediction(Prediction(Context()));
+        var fake = new ActualAttackObservation(Context(), 22, 28, true, true, isFake: true);
+        Check(r.Observe("fake-a", fake) == null && r.IgnoredSimulated == 1 && rows.Count == 1, "fake roll cannot be logged or consume a prediction");
+        Check(r.Observe("real-a", Actual(Context())).Status == ComparisonStatus.Compared, "real roll still matches after fake event");
+        r.RecordPrediction(Prediction(Context()));
+        var unassociated = new ActualAttackObservation(Context(), 22, 28, true, true);
+        var result = r.Observe("unassociated-a", unassociated);
+        Check(result.Status == ComparisonStatus.UnassociatedRoll && !result.AttackBonusMatches.HasValue, "unassociated roll not compared as a weapon attack");
+        using (var doc = JsonDocument.Parse(rows.Last()))
+            Check(doc.RootElement.GetProperty("kind").GetString() == "unassociated-observation", "unassociated records have a distinct kind");
+        Check(r.Observe("real-b", Actual(Context())).Status == ComparisonStatus.Compared, "unassociated roll does not consume weapon prediction");
+        var missing = new[] { new string('x', 500), new string('y', 500), "scope incomplete" };
+        var details = new[] { "cached reduction=5; usePool=False; remainingPoolField=12" };
+        r.RecordDamage("damage-a", "real-b", Context(), 4, 3, 4, "incomplete; inspect structured fields", missing, details);
+        using (var doc = JsonDocument.Parse(rows.Last()))
+        {
+            Check(doc.RootElement.GetProperty("defenseMissing").GetArrayLength() == 3, "separate missing reasons survive aggregate length >512");
+            Check(doc.RootElement.GetProperty("defenseObserved")[0].GetString() == details[0], "cached details are not hidden behind reasons");
+            Check(doc.RootElement.GetProperty("runtime").GetProperty("gameVersion").GetString() == "fixture-game", "metadata copied before caller mutation");
+            Check(doc.RootElement.GetProperty("sessionId").GetString() == "fixture-session-a", "session identity on damage records");
+        }
+        long last = 0;
+        foreach (var line in rows) using (var doc = JsonDocument.Parse(line))
+        {
+            long seq = doc.RootElement.GetProperty("recordSequence").GetInt64();
+            Check(seq > last && doc.RootElement.GetProperty("sessionId").GetString() == "fixture-session-a", "sequence and session carried by every record");
+            Check(doc.RootElement.GetProperty("runtime").GetProperty("gameVersion").GetString() == "fixture-game", "runtime metadata survives missing session header or file rotation");
+            last = seq;
+        }
+        var second = new DiagnosticRecorder(rows.Add, () => now, "fixture-session-b") { Enabled = true };
+        second.Observe("real-a", Actual(Context()));
+        using (var doc = JsonDocument.Parse(rows.Last()))
+            Check(doc.RootElement.GetProperty("sessionId").GetString() == "fixture-session-b", "reused object IDs from a restart remain distinguishable");
+        r.RecordDamage("budget", "real-b", Context(), 4, 3, 4, "incomplete", Enumerable.Range(0, 100).Select(i => "reason-" + i));
+        using (var doc = JsonDocument.Parse(rows.Last()))
+            Check(doc.RootElement.GetProperty("defenseMissing").GetArrayLength() == 33
+                && doc.RootElement.GetProperty("defenseMissing")[32].GetString().Contains("truncated"), "bounded evidence arrays disclose truncation");
+        r.Enabled = false;
+        int ignored = r.IgnoredSimulated;
+        Check(r.Observe("fake-off", fake) == null && r.IgnoredSimulated == ignored, "disabled observer does not process fake events");
+    }
     static void SafetyAndBoundaries()
     {
         Check(!PredictionSafety.CanReplayEvents, "API preflight cannot enable live event replay");
@@ -225,12 +282,13 @@ static class ContractTests
         if (File.Exists(path)) throw new IOException("Refusing to overwrite an existing report");
         long now = 0;
         var log = new LocalDiagnosticLog(path);
-        var recorder = new DiagnosticRecorder(log.Write, () => now) { Enabled = true };
+        var recorder = new DiagnosticRecorder(log.Write, () => now, "fixture-example") { Enabled = true };
+        recorder.SetRuntimeMetadata(new Dictionary<string, string> { { "gameVersion", "FIXTURE, not a game run" } });
         var c = new DiagnosticContext("FIXTURE rider", "FIXTURE enemy", "FIXTURE longsword", "FIXTURE turn", "FIXTURE scene", 0, "fixture-condition-v1", true);
         recorder.RecordPrediction(Prediction(c));
         now = 10;
         recorder.Observe("fixture-observed-roll-1", Actual(c));
-        recorder.RecordDamage("fixture-damage-1", "fixture-observed-roll-1", c, 7, 20, 7, "FIXTURE defense evidence, not game data");
+        recorder.RecordDamage("fixture-damage-1", "fixture-observed-roll-1", c, 7, 20, 7, "FIXTURE defense evidence, not game data", hasWeaponAttack: true);
         recorder.RecordPrediction(Prediction(c)); now = 20;
         recorder.Observe("fixture-observed-roll-2", Actual(new DiagnosticContext("FIXTURE rider", "FIXTURE enemy", "FIXTURE longsword", "FIXTURE turn", "FIXTURE scene", 0, "changed-buff", true)));
         Console.WriteLine("Wrote illustrative FIXTURE diagnostics (not a game observation): " + path);

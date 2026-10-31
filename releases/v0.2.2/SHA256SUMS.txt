@@ -1,0 +1,2 @@
+b55537dfae78e52cd82c9e7a1689c58a86e1be66d0d917ba31b004dc0aee0298  CombatPreview-0.2.2-development-source.zip
+77d3203c5644965709a81501a32c3ab234f48441f93be5c46f12c522c18dfa7e  CombatPreview-0.2.2-diagnostic-only-UMM.zip

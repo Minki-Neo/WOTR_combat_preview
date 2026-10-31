@@ -52,3 +52,12 @@ getter/iterator/evaluator. Instrument HP/temp HP, buff duration/rank, resources/
 facts, context/history and ALL RNGs; compare identical-save OFF/ON paths and subsequent actual die sequences.
 Test 1,000 hover changes, nested events, injected exceptions, scene/load transitions and each active mod.
 API compilation and the fixture suite are prerequisites, not evidence that these tests passed.
+
+## 0.2.2 follow-up
+
+The user's 0.2.1 log confirms a limited run of observation callbacks, not noninterference. The updated capture reads
+UsePool directly from the blueprint field reached via SourceBlueprintComponent's backing field, avoiding its getters.
+A positive m_RemainPool is no longer evidence of a pool, since non-pool components initialize it too. IsFake rolls
+and damage are excluded; unassociated rolls are labeled separately and cannot consume a prediction. Session IDs use
+OS Guid generation, never Unity/game RNG. Legacy prediction replay remains permanently blocked. Runtime metadata is
+copied on observer creation and included on each line. No new game rules, evaluator calls or state restoration were added.

@@ -1,4 +1,6 @@
-# Validation — 0.2.1 development / diagnostic-only
+# Validation — diagnostic development history
+
+Latest: the 0.2.2 update and user-supplied 0.2.1 runtime evidence are recorded at the end. Earlier sections describe the initial cloud validation.
 
 Date: 2026-11-01 (Asia/Seoul). This records commands actually executed in the cloud instance.
 No game executable, Unity asset data, user save or interactive game session was supplied/run.
@@ -81,3 +83,19 @@ Next input: an actual game test environment/session with a user-approved test sa
 and runtime UMM/CombatPreview logs (including exact game display version and loaded Harmony/MVID).
 Existing provided DLLs are retained privately under `/workspace/game-references`; they do not need to be supplied again
 in this workspace. Follow RUNTIME_TEST_PLAN.ko.md; do not turn a blocked feature into a passed test.
+
+## 0.2.2 diagnostic regression update — 2026-11-01
+
+User-supplied 0.2.1 runtime evidence now confirms event observation in one actual game session:
+50 roll records (35 associated with weapon attacks, 15 unassociated), 14 associated hits and 14 damage events,
+all damage linked to its roll, 22 full-attack roll rows and one confirmed critical. No error entries in the supplied
+CombatPreview.log. These do not prove predictor accuracy or state/RNG preservation. Raw personal gameplay logs
+are retained outside Git; only aggregate findings are recorded in RUNTIME_LOG_REVIEW.ko.md.
+
+0.2.2 fixes false protection-pool classification from an unused positive cache, separates unassociated rolls,
+filters IsFake events, records session/runtime identity on every row, and preserves structured defense details.
+ProtectionPoolSnapshot and recorder regression fixtures exercise those cases. Game-linked capture reads the
+blueprint backing field and its static UsePool field, without invoking virtual defense methods or evaluators.
+The original 6,699 math assertions and 138 contract/diagnostic/safety assertions (**6,837 total**) pass.
+Independent Python checks: 509; WOTR syntax: 25 source/test files. Whole net472 compilation uses the same real
+provided game/UMM references. 0.2.2 itself has not yet run in the user's game.
