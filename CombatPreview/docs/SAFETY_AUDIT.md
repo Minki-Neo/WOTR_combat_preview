@@ -191,3 +191,26 @@ Static energy type and physical bypass flags are copied into defense evidence; c
 immunity are not promoted into a complete effective-defense model. No ByPassed/Apply/CalcValue/SpendPool or
 lazy weapon-type blueprint resolution is called. Geometry is compact/left-anchored in owned UI only; F6/F7 and
 held-model freshness rules remain. New grip/count adapter correctness and layout need user-game validation.
+
+## 0.4.0 shared engine output and scoped automatic defense
+
+Added explicit read-only postfixes for completed `RuleCalculateAttackBonusWithoutTarget` and `RuleCalculateWeaponStats` outputs
+alongside the three existing result observers. The mod never constructs/triggers these rules, changes their arguments/results,
+skips originals, or activates a feat/buff. This is a general result bridge: effects implemented by the game or another mod in
+these rules are copied without per-feat enumeration. Other mods' post-handler/patch ordering and all combat conditions remain uncertified.
+Target-independent AB is not labeled as observed target AC. Expired/mismatched toggle, rank, cached context, equipment/grip,
+ability-stat and turn stamps invalidate the general weapon cache. Native totals replace fallback active bonuses rather than adding them.
+
+Deferred attack-start effects are a separate, partial static projection of already loaded blueprint references/direct apply-buff actions.
+No ContextValue evaluator, context construction/rank recalculation, resource/restriction evaluator, action executor or reference.Get is called.
+Unloaded references, unsupported conditions/actions and dynamic future values remain explicit unknown notes. Existing active buff blueprints
+are excluded from the deferred set; pending AB/damage remains labeled projected even when the base output came from the engine.
+
+AutomaticDefenseReader copies existing active/registered sources and stored scalar context values. It does not initialize parts, call
+AllSources, call virtual GetCurrentValue/Bypassed/Hit, spend pools, remove buffs or clean up reductions. It projects only supported constant
+nonstacking DR/resistance and immunity/suppression with audited bypass masks/thresholds. Unsupported pools, stacking, hardness, vulnerabilities,
+epic/reality clauses and multiple physical grouping remain unavailable where unresolved. Complete means this limited constant model,
+not all rules/modifiers certified. The old strict DefenseObservation providers remain unchanged; fullConditionsVerified stays false.
+
+The supplied assembly's field/method layout was checked by reflection without executing game methods (33 checks). This is metadata validation,
+not an in-game Harmony installation, UI, correctness or state/RNG invariance test. No new live execution evidence is claimed for 0.4.0.

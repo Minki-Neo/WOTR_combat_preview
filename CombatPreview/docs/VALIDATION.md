@@ -1,6 +1,6 @@
 # Validation — diagnostic development history
 
-Latest: 0.3.3 grip/extra-attack/layout cloud validation is recorded at the end. Earlier sections are historical results, including user-supplied 0.2.x runtime evidence.
+Latest: 0.4.0 shared-engine/automatic-DR cloud validation is recorded at the end. Earlier sections are historical results, including user-supplied 0.2.x runtime evidence.
 
 Date: 2026-11-01 (Asia/Seoul). This records commands actually executed in the cloud instance.
 No game executable, Unity asset data, user save or interactive game session was supplied/run.
@@ -209,3 +209,21 @@ Newly supplied.prev does confirm the0.3.2 observer Installed, AB/AC callback cou
 completed-rule source. Its97 newest rows are all previews, so no0.3.2 accuracy comparison is inferred.
 Earlier sessions include24 defended damage records (physical2/5, energy5/10, Electricity immunity caches).
 These are incomplete evidence, not proof of bypass/stacking/effective damage or complete state/RNG preservation.
+
+## 0.4.0 — 2026-11-01 UTC
+
+- Completed shared engine AB-without-target/weapon-stat result bridge; target AB no longer depends on simultaneous AC availability.
+  Final engine totals replace active fallback contributions. Deferred attack-start contributions are copied/projected separately and marked estimated.
+- Build-specific read-only static DR/resistance/immunity adapter; conditional bypass masks and enhancement thresholds, maximum nonstacking reduction,
+  explicit unsupported reasons, immutable profile snapshot, row/UI/JSONL integration and effective-defense cache invalidation.
+- `dotnet build` against the supplied private Managed/UMM references, net472: pass; existing unused `AttackPrediction.Charge` warning remains.
+- Pure C# suite: 6699 original +138 contract +326 beta +146 new native/active/automatic-defense assertions =7309 passed.
+  New cases cover PA BAB/handedness/mythic/rank math, AND/OR/unknown/material/alignment thresholds, max DR, crit-vs-DR order,
+  mixed resistance/immunity, unsupported pools/physical grouping, immutable copies, pending/native duplicate avoidance, cache invalidation and logged-row equality.
+- Private reflection-only probe: 33 field/method layout checks passed against the supplied Assembly-CSharp, without executing game methods.
+- Separate Python mathematical oracle and C# tree-sitter syntax verification recorded with the release package checks below.
+- New game hooks/activation projection/automatic defense have NOT been run in the actual game. Previous 0.3.2 user's runtime evidence does not validate these changes.
+  Request current diagnostics JSONL + .prev and F6 OFF/ON/DR observations for the next runtime check.
+- Release checks: independent Python509 checks/2 project XML files; tree-sitter39 production/main-test C# files.
+  The separate ReferenceLayout executable also compiled and passed33 metadata checks. Package build after successful NuGet audit restore:0 warnings/0 errors.
+  Installation archive allowlist/CRC/current-DLL/doc/version checks and source archive dependency/raw-log exclusion were verified before publication.

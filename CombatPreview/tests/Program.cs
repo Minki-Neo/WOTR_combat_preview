@@ -90,5 +90,6 @@ class Program
         Console.WriteLine("PASS: " + assertions + " original math assertions");
         ContractTests.Run();
         BetaTests.Run();
+        NativeDefenseTests.Run();
     }
 }

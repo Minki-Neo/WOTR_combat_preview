@@ -229,7 +229,7 @@ namespace CombatPreview
                 + ",\"rolls\":" + c.Rolls + ",\"sides\":" + c.Sides + ",\"bonus\":" + c.Bonus + ",\"multiplies\":" + Bool(c.Multiplies) + "}").ToArray()) + "]";
         }
         public bool RecordBetaPreview(BetaSnapshot preview, DefenseProfile manualScenario = null,
-            string observerStatus = null, long observedAB = 0, long observedAC = 0, long observedCounts = 0)
+            string observerStatus = null, long observedAB = 0, long observedAC = 0, long observedCounts = 0, long observedBaseAB = 0, long observedWeaponStats = 0)
         {
             lock (gate)
             {
@@ -243,11 +243,14 @@ namespace CombatPreview
                     + ",\"meanOnHitRaw\":" + NullableNumber(r.MeanOnHit)
                     + ",\"expectedManualScenario\":" + NullableNumber(scenarios[i] != null && scenarios[i].Available ? scenarios[i].Expected : (double?)null)
                     + ",\"meanOnHitManualScenario\":" + NullableNumber(scenarios[i] != null && scenarios[i].Available && r.Hit > 0 ? scenarios[i].Expected / r.Hit : (double?)null)
-                    + ",\"expectedRaw\":" + NullableNumber(r.ExpectedRaw) + "}").ToArray()) + "]";
+                    + ",\"expectedRaw\":" + NullableNumber(r.ExpectedRaw)
+                    + ",\"expectedAfterDefense\":" + NullableNumber(r.AfterDefense != null && r.AfterDefense.Available ? r.AfterDefense.Expected : (double?)null)
+                    + ",\"meanOnHitAfterDefense\":" + NullableNumber(r.AfterDefense != null && r.AfterDefense.Available && r.Hit > 0 ? r.AfterDefense.Expected / r.Hit : (double?)null)
+                    + ",\"afterDefenseReason\":" + Quote(r.AfterDefense?.Reason) + "}").ToArray()) + "]";
                 return Emit(clock(), "beta-preview", preview.Id, preview.Context(), "\"previewId\":" + Quote(preview.Id)
                     + ",\"betaActorId\":" + Quote(preview.Input.Actor) + ",\"betaTargetId\":" + Quote(preview.Input.Target) + ",\"betaWeaponId\":" + Quote(preview.Input.Weapon)
                     + ",\"quality\":\"PartialEstimate\",\"basis\":" + Quote(preview.Input.Source) + ",\"fullConditionsVerified\":false"
-                    + ",\"totalsObserved\":" + Bool(preview.Input.Source.StartsWith("observed-"))
+                    + ",\"totalsObserved\":" + Bool(preview.Input.PairObserved)
                     + ",\"naturalWeapon\":" + Bool(preview.Input.NaturalWeapon)
                     + ",\"grip\":" + Quote(preview.Input.Grip)
                     + ",\"fullAttack\":" + Bool(preview.Input.FullAttack) + ",\"bab\":" + preview.Input.BAB
@@ -256,9 +259,16 @@ namespace CombatPreview
                     + ",\"completedRuleObserver\":" + Quote(observerStatus)
                     + ",\"observedABResults\":" + observedAB + ",\"observedACResults\":" + observedAC
                     + ",\"observedAttackCounts\":" + observedCounts
+                    + ",\"observedBaseABResults\":" + observedBaseAB + ",\"observedWeaponStats\":" + observedWeaponStats
+                    + ",\"attackObserved\":" + Bool(preview.Input.AttackObserved) + ",\"acObserved\":" + Bool(preview.Input.ACObserved)
+                    + ",\"damageObserved\":" + Bool(preview.Input.DamageObserved)
+                    + ",\"pendingAttackModifier\":" + preview.Input.PendingAttack + ",\"pendingDamageModifier\":" + preview.Input.PendingDamage
+                    + ",\"modifierNotes\":" + StringArray(preview.Input.ModifierNotes)
+                    + ",\"defenseNotes\":" + StringArray(preview.Input.DefenseNotes)
                     + ",\"damageComponents\":" + BetaComponents(preview.Input.Components)
                     + ",\"manualScenario\":" + Bool(manualScenario != null)
-                    + ",\"defensePartPresent\":" + Bool(preview.Input.DefensePartPresent) + ",\"afterDefenseAvailable\":false"
+                    + ",\"defensePartPresent\":" + Bool(preview.Input.DefensePartPresent)
+                    + ",\"afterDefenseAvailable\":" + Bool(preview.Rows.All(r => r.AfterDefense != null && r.AfterDefense.Available))
                     + ",\"scopeNotes\":" + StringArray(preview.Notes) + ",\"rows\":" + rows);
             }
         }

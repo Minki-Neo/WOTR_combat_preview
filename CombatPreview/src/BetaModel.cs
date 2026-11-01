@@ -8,24 +8,33 @@ namespace CombatPreview
     public sealed class BetaInput
     {
         public readonly string Actor, Target, Weapon, Turn, Signature;
-        public readonly int BAB, AttackBonus, AC, Rolls, Sides, Bonus, CriticalEdge, Multiplier;
+        public readonly int BAB, AttackBonus, AC, Rolls, Sides, Bonus, CriticalEdge, Multiplier, PendingAttack, PendingDamage;
         public readonly bool FullAttack, DamageKnown, DefensePartPresent;
         public readonly string Source;
+        public bool ACObserved { get { return Source == "observed-completed-rules" || Source.StartsWith("observed-existing-estimate"); } }
+        public bool PairObserved { get { return ACObserved && AttackObserved; } }
+        public bool AttackObserved { get { return PendingAttack == 0 && (ACObserved || Source.StartsWith("observed-weapon-rules/") || Source.StartsWith("observed-target-attack/")); } }
+        public bool DamageObserved { get { return PendingDamage == 0 && Source.StartsWith("observed-"); } }
         public readonly IReadOnlyList<DamageComponentSnapshot> Components;
         public readonly bool NaturalWeapon;
         public readonly IReadOnlyList<int> AttackPenalties;
         public readonly string AttackCountSource, Grip;
+        readonly DefenseProfile defense;
+        public DefenseProfile Defense { get { return SupportedCombatRules.Copy(defense); } }
+        public readonly IReadOnlyList<string> ModifierNotes, DefenseNotes;
         public readonly IReadOnlyList<string> AttackCountReasons;
         public BetaInput(string actor, string target, string weapon, string turn, string signature,
             int bab, int ab, int ac, int rolls, int sides, int bonus, int edge, int multiplier,
             bool fullAttack, bool damageKnown, bool defensePartPresent,
             IEnumerable<DamageComponentSnapshot> components = null, string source = "cached-stats/basic-primary-weapon", bool naturalWeapon = false,
-            IEnumerable<int> attackPenalties = null, string attackCountSource = "basic-bab", IEnumerable<string> attackCountReasons = null, string grip = "unknown")
+            IEnumerable<int> attackPenalties = null, string attackCountSource = "basic-bab", IEnumerable<string> attackCountReasons = null, string grip = "unknown",
+            DefenseProfile defense = null, IEnumerable<string> modifierNotes = null, IEnumerable<string> defenseNotes = null, int pendingAttack = 0, int pendingDamage = 0)
         {
             if (new[] { actor, target, weapon, turn, signature }.Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("Missing beta identity");
             if (bab < 0 || bab > 100 || edge < 2 || edge > 20 || multiplier < 1 || multiplier > 10
                 || rolls < 0 || rolls > 100 || sides < 1 || sides > 100) throw new ArgumentOutOfRangeException("beta input");
             Actor = actor; Target = target; Weapon = weapon; Turn = turn; Signature = signature;
+            PendingAttack = pendingAttack; PendingDamage = pendingDamage;
             BAB = bab; AttackBonus = ab; AC = ac; Rolls = rolls; Sides = sides; Bonus = bonus;
             CriticalEdge = edge; Multiplier = multiplier; FullAttack = fullAttack; DamageKnown = damageKnown;
             DefensePartPresent = defensePartPresent;
@@ -35,6 +44,9 @@ namespace CombatPreview
             if (penalties.Length == 0 || penalties.Length > 24 || penalties.Any(p => p < 0 || p > 100)) throw new ArgumentException("Invalid attack pattern");
             AttackPenalties = Array.AsReadOnly(penalties);
             AttackCountSource = attackCountSource; Grip = grip;
+            this.defense = SupportedCombatRules.Copy(defense);
+            ModifierNotes = Array.AsReadOnly((modifierNotes ?? new string[0]).ToArray());
+            DefenseNotes = Array.AsReadOnly((defenseNotes ?? new string[0]).ToArray());
             AttackCountReasons = Array.AsReadOnly((attackCountReasons ?? new string[0]).ToArray());
             var copy = (components ?? new[] { new DamageComponentSnapshot(new DamageTerm(rolls, sides, bonus, true)
                 { Kind = DamageKind.Physical }, false, null) }).ToArray();
@@ -54,6 +66,7 @@ namespace CombatPreview
         public DamageSummary? Normal { get; internal set; }
         public DamageSummary? Critical { get; internal set; }
         public double? ExpectedRaw { get; internal set; }
+        public MitigatedResult AfterDefense { get; internal set; }
         public double? MeanOnHit { get { return ExpectedRaw.HasValue && Hit > 0 ? ExpectedRaw.Value / Hit : (double?)null; } }
     }
     public sealed class BetaSnapshot
@@ -70,14 +83,14 @@ namespace CombatPreview
                 "확인된 질풍격/가속 효과를 합산합니다. 제조 보조손 등 알 수 없는 추가 타격은 미확인입니다.",
                 input.Source.StartsWith("observed-")
                     ? "최근 게임 추정의 AB/AC/피해 구성 사본입니다. 첫 공격을 기본 반복 모델에 적용하며 완전한 조건 일치는 미확정입니다."
-                    : "무기 강화·특기·명중/피해 능력치 치환·조건부 발동 효과는 미반영입니다.",
+                    : "지원된 활성 효과·무기 강화·명중 능력치 치환을 반영합니다. 상세에 판독 내역을 표시합니다.",
                 input.Source.StartsWith("observed-")
                     ? "추정 당시 일부 보정이 포함될 수 있지만 공격 시 조건부 효과·난이도 보정은 별도 검증되지 않았습니다."
-                    : "난이도 보정·강타 등 공격 시 적용되는 보정은 미반영입니다.",
-                input.Source.StartsWith("observed-")
+                    : "지원 목록 밖의 조건부 효과·난이도 보정은 미확인입니다.",
+                input.ACObserved
                     ? "AC는 관측된 추정 이벤트의 값입니다. 은폐·재굴림·치명타 면역 등 확률 수정은 미반영입니다."
                     : "AC는 저장된 일반 AC입니다. 협공·은폐·무방비·재굴림·치명타 면역 등은 미반영입니다.",
-                "피해는 방어 전 모델입니다. DR·저항·면역·보호막 적용 후 피해는 계산하지 않습니다."
+                "방어 후 수치는 현재 상태의 지원된 DR·저항·면역 모델입니다. 소모형 보호막·특수 방어는 미확인 시 계산하지 않습니다."
             });
         }
         public DiagnosticContext Context(int index = -1)
@@ -110,6 +123,9 @@ namespace CombatPreview
                     row.Normal = DamageMath.Summarize(terms, 1);
                     row.Critical = DamageMath.Summarize(terms, input.Multiplier);
                     row.ExpectedRaw = DamageMath.Expected(row.Hit, row.Crit, row.Normal.Value.Mean, row.Critical.Value.Mean);
+                    row.AfterDefense = input.Components.Count(c => c.Kind == DamageKind.Physical) > 1
+                        ? new MitigatedResult { Reason = "여러 물리 피해 구성의 개별 관통/순서 미확인" }
+                        : MitigationMath.Calculate(terms, input.Multiplier, row.Hit, row.Crit, input.Defense);
                 }
                 rows.Add(row);
             }

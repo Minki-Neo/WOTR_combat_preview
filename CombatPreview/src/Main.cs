@@ -130,14 +130,14 @@ namespace CombatPreview
         {
             GUILayout.Label(Compatibility.Summary);
             foreach (var issue in Compatibility.Issues) GUILayout.Label(issue);
-            GUILayout.Label("읽기 전용 베타: 기본 주무기 모델의 부분 추정입니다. 실제 게임 표시/비교는 베타 검증 중입니다.");
+            GUILayout.Label("읽기 전용 베타: 게임 공통 규칙 결과 우선 / 누락 항목은 부분 추정입니다. 실제 게임 표시/비교는 베타 검증 중입니다.");
             bool show = GUILayout.Toggle(Settings.ShowOnHover, "베타 무기 미리보기 켜기 (기본 OFF)");
             if (show != Settings.ShowOnHover) { Settings.ShowOnHover = show && Compatibility.CanPreview; HoverChance.Invalidate(); SyncRuleObservers(); }
             Settings.CompareBeta = GUILayout.Toggle(Settings.CompareBeta, "표시 모델과 실제 AB/AC/무기 구성의 차이를 로컬 로그에 기록");
             Settings.BetaAlerts = GUILayout.Toggle(Settings.BetaAlerts, "모델 차이 알림 표시 (미반영 효과일 수 있음; 팝업으로 전투를 막지 않음)");
             bool observed = GUILayout.Toggle(Settings.UseObservedPreview, "이미 실행된 AB/AC 계산 결과와 피해 구성 읽기 (추가 규칙 실행 없음)");
             if (observed != Settings.UseObservedPreview) { Settings.UseObservedPreview = observed; HoverChance.Invalidate(); SyncRuleObservers(); }
-            GUILayout.Label("완료된 규칙 관측: " + (PassiveRuleResults.Installed ? "ON" : "OFF") + " | AB " + BetaRuntime.ObservedAB + " / AC " + BetaRuntime.ObservedAC + " / 공격 수 " + BetaRuntime.ObservedCounts);
+            GUILayout.Label("완료된 규칙 관측: " + (PassiveRuleResults.Installed ? "ON" : "OFF") + " | 대상 AB " + BetaRuntime.ObservedAB + " / AC " + BetaRuntime.ObservedAC + " / 무기 AB " + BetaRuntime.ObservedBaseAB + " / 피해 " + BetaRuntime.ObservedWeaponStats + " / 공격 수 " + BetaRuntime.ObservedCounts);
             GUILayout.BeginHorizontal();
             GUILayout.Label("상세 키"); Settings.DetailsKey = GUILayout.TextField(Settings.DetailsKey, GUILayout.Width(70));
             GUILayout.Label("대상 고정 키"); Settings.PinKey = GUILayout.TextField(Settings.PinKey, GUILayout.Width(70));
@@ -146,7 +146,7 @@ namespace CombatPreview
             if (left != Settings.AnchorLeft) { Settings.AnchorLeft = left; if (left) Settings.AnchorAboveActionBar = false; }
             bool centered = GUILayout.Toggle(Settings.AnchorAboveActionBar, "하단 행동 막대 위 중앙 배치");
             if (centered != Settings.AnchorAboveActionBar) { Settings.AnchorAboveActionBar = centered; if (centered) Settings.AnchorLeft = false; }
-            GUILayout.Label("양손 잡기와 확인된 추가 공격 효과를 반영합니다. 모든 추가 타격/제조 보조손 및 DR·저항·보호막 적용 피해는 미확인입니다.");
+            GUILayout.Label("게임 계산 결과와 지원된 예약 효과·양손 잡기·추가 공격을 반영합니다. DR/저항/면역은 지원된 정적 모델이며 소모형 보호막·특수 방어는 미확인입니다.");
             bool localDiagnostics = GUILayout.Toggle(Settings.LocalDiagnostics, "Local passive attack diagnostics (no extra rules/dice; max 2 MiB)");
             if (localDiagnostics != Settings.LocalDiagnostics) { Settings.LocalDiagnostics = localDiagnostics; Diagnostics?.Reset(); }
             GUILayout.Label("베타 차이 기록: " + BetaRuntime.DifferenceCount + " | 기대 피해와 한 번의 무작위 피해는 불일치로 판정하지 않습니다.");

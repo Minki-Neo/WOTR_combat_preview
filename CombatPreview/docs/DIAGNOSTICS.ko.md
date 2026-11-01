@@ -1,4 +1,6 @@
-# 로컬 진단 사용법 — 0.3.3 베타
+# 로컬 진단 사용법 — 0.4.0 베타
+
+최신 자동 방어/공통 계산 결과 필드는 문서 끝의0.4.0 절을 참조하세요. 이전 절의 지원 제한은 당시 버전의 기록입니다.
 
 Ctrl+F10 → Combat Preview (Read-only Beta)에서 **베타 무기 미리보기 켜기**와
 **표시 모델과 실제 AB/AC/무기 구성의 차이를 로컬 로그에 기록**을 켭니다.
@@ -146,3 +148,29 @@ alignment/reality/weaponType/melee/epic/validWeapons/attackTypes 같은 캐시/�
 
 현재 파일이 가득 차면 `.prev`로 회전합니다. 이번 사용자.prev의 최신0.3.2 세션은 순번1–97의
 미리보기만 담았고 이후 실제 공격은 현재 파일에 있을 수 있습니다. 두 파일을 함께 전달하세요.
+
+## 0.4.0 공통 규칙 관측과 자동 방어
+
+이 절이 최신 동작입니다. 이전 절의 “자동 방어 항상 불가”는0.3.x 이전 기록입니다.
+
+`beta-preview`의 각 행에 `expectedAfterDefense`, `meanOnHitAfterDefense`, `afterDefenseReason`을 기록합니다.
+숫자는 해당 패널 행에서 사용하는 동일한 `AfterDefense` 계산 결과이며, 수동 시나리오는 기존 별도 필드를 유지합니다.
+`afterDefenseAvailable`은 모든 표시 행의 지원된 정적 방어 계산 가능 여부입니다. `fullConditionsVerified=false`는 그대로입니다.
+`defenseNotes`에는 DR 후보/관통/최대 적용값, 저항/면역/억제 및 계산 불가 이유를 기록합니다.
+
+`attackObserved` / `acObserved` / `damageObserved`를 구분합니다. 대상 없는 무기 규칙을 읽어도 `acObserved=false`입니다.
+예약 효과를 추정으로 더한 명중/피해는 해당 observed 플래그가 false입니다. `pendingAttackModifier` / `pendingDamageModifier`가 추정 보정입니다.
+`modifierNotes`에는 게임 규칙의 명중 합계/보정 내역 또는 제한된 보조 판독 내역을 남깁니다.
+`basis`의 `observed-weapon-rules/estimated-target-ac`는 공통 무기 AB/피해를 읽고 대상 AC는 추정한 경로,
+`observed-weapon-damage/estimated-attack-ac`는 피해만 읽은 경로입니다. `observed-target-attack/estimated-ac`는 대상 AB를 읽고 AC는 추정한 경로입니다.
+`observed-completed-rules`는 대상 규칙 경로이며 예약 추정이 더해졌는지는 별도 pending/observed 필드로 확인합니다.
+
+`observedBaseABResults`, `observedWeaponStats`가 새 공통 규칙 관측 횟수입니다. 기존 `observedABResults`, `observedACResults`,
+`observedAttackCounts`도 유지합니다. 설치 상태가 ON이어도 특정 항목이 아직 관측되지 않으면 추정일 수 있습니다.
+
+권장 시험은 같은 공격자/무기/적/모드에서 강력한 공격 OFF/ON을 번갈아 F6 상세로 비교하는 것입니다.
+BAB4 일반 강력한 공격은 명중−2, 한손 피해+4/양손+6입니다. 게임이 실제로 효과 버프를 붙인 뒤에는 예약 델타가0이 되어 중복 가산하지 않아야 합니다.
+`미로드`/`동적 값`/`특수 액션`은 실행 없이 확인할 수 없는 예약 효과이며 상세와 로그에 남깁니다.
+DR 적에 대해서는 `defenseNotes`·각 행의 방어 전/후 수치·실제 damage 기록을 함께 확인합니다.
+한 번의 무작위 실제 피해를 기댓값과 비교해 불일치 알림을 띄우지는 않습니다.
+현재 JSONL과 `.prev`를 함께 전달하면 회전 전후 자료를 이어 볼 수 있습니다.

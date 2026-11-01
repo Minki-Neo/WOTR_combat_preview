@@ -4,7 +4,7 @@ using Kingmaker.RuleSystem.Rules;
 
 namespace CombatPreview
 {
-    // Three explicit POSTFIX observers. No PatchAll, prefixes, skipped originals,
+    // Explicit POSTFIX observers for the shared engine calculation pipeline. No PatchAll, prefixes, skipped originals,
     // changed args/results, rule constructors, handlers, or RNG calls.
     internal static class PassiveRuleResults
     {
@@ -24,6 +24,10 @@ namespace CombatPreview
                     postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterAC)) { priority = Priority.Last });
                 instance.Patch(AccessTools.Method(typeof(RuleCalculateAttacksCount), "OnTrigger"),
                     postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterCount)) { priority = Priority.Last });
+                instance.Patch(AccessTools.Method(typeof(RuleCalculateAttackBonusWithoutTarget), "OnTrigger"),
+                    postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterBaseAB)) { priority = Priority.Last });
+                instance.Patch(AccessTools.Method(typeof(RuleCalculateWeaponStats), "OnTrigger"),
+                    postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterWeapon)) { priority = Priority.Last });
                 harmony = instance; faulted = false;
             }
             catch { instance.UnpatchAll(Owner); throw; }
@@ -36,6 +40,10 @@ namespace CombatPreview
         { Read(() => BetaRuntime.ObserveACResult(__instance)); }
         static void AfterCount(RuleCalculateAttacksCount __instance)
         { Read(() => BetaRuntime.ObserveCountResult(__instance)); }
+        static void AfterBaseAB(RuleCalculateAttackBonusWithoutTarget __instance)
+        { Read(() => BetaRuntime.ObserveBaseABResult(__instance)); }
+        static void AfterWeapon(RuleCalculateWeaponStats __instance)
+        { Read(() => BetaRuntime.ObserveWeaponResult(__instance)); }
         static void Read(Action read)
         {
             if (faulted) return;

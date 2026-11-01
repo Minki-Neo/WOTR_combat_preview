@@ -140,7 +140,8 @@ namespace CombatPreview
         { GUILayout.Label(value, style ?? rowStyle, GUILayout.Width(width)); }
         MitigatedResult Scenario(BetaSnapshot snapshot, BetaRow row)
         {
-            if (!Main.Settings.ManualScenario || !Main.Settings.ScenarioConfirmed || !snapshot.Input.DamageKnown) return null;
+            if (!Main.Settings.ManualScenario || !Main.Settings.ScenarioConfirmed) return row.AfterDefense;
+            if (!snapshot.Input.DamageKnown) return null;
             return MitigationMath.Calculate(snapshot.Input.Components.Select(c => c.ToTerm()).ToArray(), snapshot.Input.Multiplier,
                 row.Hit, row.Crit, DefenseReader.Scenario(Main.Settings));
         }
@@ -160,7 +161,7 @@ namespace CombatPreview
             GUILayout.Label("전투 미리보기 · " + m_Target.CharacterName + "  |  " + (targetHealth ?? "체력 미확인"), titleStyle);
             GUILayout.Label((panelHeld ? "보관 중 · 대상 위로 돌아가면 갱신" : retention.Pinned ? "고정 중" : settings.PinKey + " 고정") + "  |  " + settings.DetailsKey + " 상세  |  ~ 기본 추정", mutedStyle);
             bool manual = settings.ManualScenario && settings.ScenarioConfirmed;
-            double manualTotal = 0; bool manualComplete = manual;
+            double manualTotal = 0; bool manualComplete = true;
             float available = Mathf.Max(120, panelWidth - 56);
             float actorW = available * .32f, hitW = available * .10f, diceW = available * .24f, meanW = available * .13f, expectedW = available * .21f;
             GUILayout.BeginHorizontal();
@@ -178,7 +179,7 @@ namespace CombatPreview
                 string identity = attack.Actor + " · " + (attack.Weapon ?? attack.Role);
                 if (snapshot == null)
                 { GUILayout.Label(identity + " — " + attack.Reason, rowStyle); manualComplete = false; continue; }
-                bool observedTotals = snapshot.Input.Source.StartsWith("observed-");
+                bool observedTotals = snapshot.Input.AttackObserved && snapshot.Input.PairObserved;
                 foreach (var row in snapshot.Rows)
                 {
                     var scenario = Scenario(snapshot, row);
@@ -192,22 +193,29 @@ namespace CombatPreview
                     TableCell(PanelPresentation.Value(expected) + " / " + PanelPresentation.Value(row.ExpectedRaw), expectedW, numberStyle);
                     GUILayout.EndHorizontal();
                     if (settings.PanelDetails)
-                        GUILayout.Label((observedTotals ? "관측" : "추정") + " AC " + row.AC + " · AB " + row.AB.ToString("+0;-0;0")
+                        GUILayout.Label((snapshot.Input.ACObserved ? "게임 AC " : "추정 AC ") + row.AC + " · " + (snapshot.Input.AttackObserved ? "게임 AB " : "추정 AB ") + row.AB.ToString("+0;-0;0")
                             + " · " + AttackThreshold.Describe(row.AB, row.AC), rowStyle);
                     manualComplete &= expected.HasValue;
                     if (expected.HasValue) manualTotal += expected.Value;
                 }
-                if (settings.PanelDetails && snapshot.Input.AttackCountReasons.Count > 0)
-                    GUILayout.Label("추가 공격: " + string.Join(", ", snapshot.Input.AttackCountReasons.ToArray()), rowStyle);
+                if (settings.PanelDetails)
+                {
+                    if (snapshot.Input.AttackCountReasons.Count > 0) GUILayout.Label("추가 공격: " + string.Join(", ", snapshot.Input.AttackCountReasons.ToArray()), textStyle);
+                    GUILayout.Label("계산 출처: " + snapshot.Input.Source, mutedStyle);
+                    foreach (var note in snapshot.Input.ModifierNotes) GUILayout.Label(note, textStyle);
+                    foreach (var note in snapshot.Input.DefenseNotes) GUILayout.Label(note, textStyle);
+                    var unavailable = snapshot.Rows.FirstOrDefault(r => r.AfterDefense == null || !r.AfterDefense.Available);
+                    if (unavailable != null) GUILayout.Label("방어 후 미확인: " + (unavailable.AfterDefense?.Reason ?? "피해 구성 미확인"), textStyle);
+                }
             }
             GUILayout.EndScrollView();
             GUILayout.BeginHorizontal();
             GUILayout.Label("표시 공격 합계 (후/전)", rowStyle);
-            GUILayout.Label((manualComplete ? PanelPresentation.Value(manualTotal) + " (수동)" : "—") + " / "
+            GUILayout.Label((manualComplete ? PanelPresentation.Value(manualTotal) + (manual ? " (수동)" : "") : "—") + " / "
                 + PanelPresentation.Value(PanelPresentation.TotalRaw(panelAttacks.Select(a => a.Snapshot))), numberStyle);
             if (GUILayout.Button(settings.PanelDetails ? "접기 " + settings.DetailsKey : "상세 " + settings.DetailsKey, GUILayout.Width(82))) settings.PanelDetails = !settings.PanelDetails;
             GUILayout.EndHorizontal();
-            GUILayout.Label(manual ? "후=수동 방어 시나리오 · 실제 대상 방어 아님" : "후=DR·저항 반영(미확인 —) / 전=방어 전 · 평균은 치명 포함", mutedStyle);
+            GUILayout.Label(manual ? "후=수동 방어 시나리오 · 실제 대상 방어 아님" : "후=지원 DR·저항·면역 반영 / 전=방어 전 · 특수 방어 미확인 — · 부분 추정", mutedStyle);
             GUI.DragWindow(new Rect(0, 0, 10000, 28));
             if (!panelHeld && Event.current.type == EventType.Repaint) foreach (var attack in panelAttacks) if (attack.Snapshot != null) BetaRuntime.Shown(attack.Snapshot);
         }
