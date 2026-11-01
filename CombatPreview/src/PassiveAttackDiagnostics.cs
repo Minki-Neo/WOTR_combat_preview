@@ -41,7 +41,7 @@ namespace CombatPreview
             if (loggedPreviews.Contains(key)) return;
             if (loggedPreviews.Count > 256) loggedPreviews.Clear();
             if (recorder.RecordBetaPreview(snapshot, manual ? DefenseReader.Scenario(s) : null,
-                PassiveRuleResults.Installed ? "Installed" : "Unavailable", BetaRuntime.ObservedAB, BetaRuntime.ObservedAC)) loggedPreviews.Add(key);
+                PassiveRuleResults.Installed ? "Installed" : "Unavailable", BetaRuntime.ObservedAB, BetaRuntime.ObservedAC, BetaRuntime.ObservedCounts)) loggedPreviews.Add(key);
         }
         internal string Status { get { return recorder.Faulted ? "Stopped after a file write failure"
             : "Dropped by rate limit: " + recorder.Dropped + " | Ignored simulated events: " + recorder.IgnoredSimulated; } }

@@ -61,3 +61,8 @@ or redistributed. The panel uses the already-loaded GUI font at runtime.
 mount/natural-slot graph reader and per-actor/weapon comparison changes are original
 MIT additions. Game IL was inspected locally; no decompiled source or reference DLL
 is included. Observer postfixes use the game's existing Harmony dependency.
+
+0.3.3: EquipmentPreviewReader.cs and WeaponModelRules.cs, copied attack-pattern
+support, compact left table and enriched passive defense evidence are original MIT
+contributions. Supplied game IL informed field/API semantics; no decompiled source,
+proprietary game references or original user gameplay logs are redistributed.

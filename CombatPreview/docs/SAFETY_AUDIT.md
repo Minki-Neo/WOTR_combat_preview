@@ -1,3 +1,5 @@
+> 0.3.3 adds a third explicit completed-rule postfix for attack counts. Legacy replay remains blocked; see the final section for current grip/count/defense boundaries.
+
 > 0.3.2 current policy: legacy replay/suppression patches stay blocked. Two opt-in, explicitly installed postfix observers now read completed AB/AC rules. Historical “no Harmony patches” statements below describe earlier versions. See the final section.
 
 > Current 0.3.0: legacy replay remains blocked. A separate opt-in read-only basic-weapon partial model is described in the final section. Earlier blanket hover-block statements describe 0.2.x.
@@ -163,3 +165,29 @@ In-game interaction, action eligibility, patch ordering and all-state/all-RNG no
 Selecting either member can show its reciprocal counterpart. Action-state choice follows the existing
 GetActionsStates rider-vs-mount branch with cached references; full-mode reads also respect selected member
 and the original noncontrollable/nonselected-rider fallback. The native result key includes attack mode.
+
+## 0.3.3 grip, known extra attacks and compact UI
+
+EquipmentPreviewReader reads current HandsEquipmentSet.m_GripType and existing primary/secondary cached item
+references. Explicit One/TwoHanded is honored. Ordinary Auto checks an empty secondary slot, already loaded
+CanTakeTwoHands blueprint flags, FighterOnHandedGrip and existing Magus.SpellCombat state. It does not call
+GetPreferredAutoGripType/MaybeWeapon/IsGripAllowed or mutate equipment. Positive strength is multiplied1.5
+and truncated; penalties are not multiplied. Ranged/natural fallback limitations remain partial.
+
+For an active unit fact, only already-instantiated subscribed component fields are read. Known
+BuffExtraAttackWeaponSpecific range filters and constant BuffExtraAttack Number/Haste/Penalized fields
+are interpreted into copied penalty arrays. No component handler, ContextValue, delegate/evaluator, fact
+initialization or attack enumeration is invoked. Effect labels come from the already-held fact blueprint.
+Unknown component classes are not assumed zero certified extras. Every report remains incomplete.
+
+The third owner-scoped postfix observes existing RuleCalculateAttacksCount.OnTrigger results. It refuses
+forced-primary/filter/forced-natural contexts, checks a loaded manufactured primary weapon and bounded
+MainAttacks/PenalizedAttacks/Flawless fields, and stores a copied pattern for<=1.5s with actor/weapon/turn/mode/
+position/HP/fact/BAB identity. Native patterns override the known-component fallback; they are never added
+on top of it. Natural per-slot modeling remains separate. Arrays are defensively copied and capped at24rows.
+No rule is constructed or triggered. Installation rollback/removal remains owner-only and unverified in game.
+
+Static energy type and physical bypass flags are copied into defense evidence; cached reduction and registered
+immunity are not promoted into a complete effective-defense model. No ByPassed/Apply/CalcValue/SpendPool or
+lazy weapon-type blueprint resolution is called. Geometry is compact/left-anchored in owned UI only; F6/F7 and
+held-model freshness rules remain. New grip/count adapter correctness and layout need user-game validation.

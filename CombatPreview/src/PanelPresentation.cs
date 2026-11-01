@@ -48,6 +48,16 @@ namespace CombatPreview
             x = Math.Max(0, (screenWidth - width) / 2);
             y = Math.Max(0, Math.Min(screenHeight - height, actionBarTop - height - 12));
         }
+        public static void PlaceLeft(float screenWidth, float screenHeight, float width, float height, out float x, out float y)
+        {
+            x = Math.Max(0, Math.Min(24, screenWidth - width));
+            y = Math.Max(0, Math.Min(screenHeight - height, Math.Min(160, screenHeight * .16f)));
+        }
+        public static float CompactHeight(int rows, int components, bool details, float screenHeight)
+        {
+            float row = Math.Max(30, components * 17 + 6) + (details ? 19 : 0);
+            return Math.Min(420, Math.Min(screenHeight * .6f, 145 + rows * row));
+        }
     }
     // Copies only scalars from an already completed GAME-created estimate.
     // No fake event is created, executed, or counted as a real attack by the mod.

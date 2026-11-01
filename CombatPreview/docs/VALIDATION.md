@@ -1,6 +1,6 @@
 # Validation — diagnostic development history
 
-Latest: 0.3.2 mount/interaction/observer cloud validation is recorded at the end. Earlier sections are historical results, including user-supplied 0.2.x runtime evidence.
+Latest: 0.3.3 grip/extra-attack/layout cloud validation is recorded at the end. Earlier sections are historical results, including user-supplied 0.2.x runtime evidence.
 
 Date: 2026-11-01 (Asia/Seoul). This records commands actually executed in the cloud instance.
 No game executable, Unity asset data, user save or interactive game session was supplied/run.
@@ -190,3 +190,22 @@ Python packaging completed a full build and verified the six-file allowlist/CRC.
 reported NU1900 while reaching the NuGet audit endpoint; an escalated restore through the inherited proxy
 succeeded, preserving TLS/signature/audit checks. Final packaging is repeated with that restored metadata.
 PowerShell packaging/ModFinder itself remain unrun on Linux. Source and installer ZIPs are inspected separately.
+
+## 0.3.3 — 2026-11-01 Asia/Seoul
+
+C# assertions: **6699 original +138 contracts +326 beta =7163** passed. New checks cover positive/odd/
+negative strength under two-hand grip; BAB2 bow flurry0/0 vs a single attack; independent BAB iteratives,
+haste, flawless/native pattern shape, both flurry rows/combined expectation and second-row actual comparison;
+1d8+6 normal mean10.5 / conditional mean11.55; left placement and height<=420; count cause/grip JSON.
+Python:509 independent checks/two project XML files; WOTR syntax:33 C# files. Full net472 mod compilation
+against supplied references succeeds with zero errors and the existing unused Charge warning.
+
+Initial adapter compilation found CountableFlag has implicit bool rather than Active; corrected using the
+inspected game getter/operator. Assertions were not disabled. Source shaping and static field inspection are
+not evidence of Unity interaction/adapter accuracy. Actual Auto grip, fact activation/range applicability,
+postfix installation/removal and three-method interop, flurry/haste behavior and compact UI remain game-unrun.
+
+Newly supplied.prev does confirm the0.3.2 observer Installed, AB/AC callback counters and10 models using
+completed-rule source. Its97 newest rows are all previews, so no0.3.2 accuracy comparison is inferred.
+Earlier sessions include24 defended damage records (physical2/5, energy5/10, Electricity immunity caches).
+These are incomplete evidence, not proof of bypass/stacking/effective damage or complete state/RNG preservation.

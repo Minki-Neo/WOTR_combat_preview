@@ -56,6 +56,19 @@ namespace CombatPreview
                     + ", applied=" + (applied ?? "unknown") + ", usePool=" + (usePool.HasValue ? usePool.Value.ToString() : "unknown")
                     + ", poolPresence=" + poolSnapshot.Presence + ", remainingPoolField=" + (pool ?? "unknown")
                     + ", component=" + (settings == null ? "unknown" : settings.GetType().FullName));
+                var energy = settings as AddDamageResistanceEnergy;
+                if (energy != null) o.ObservedDetails.Add("UNVERIFIED energy resistance type=" + energy.Type);
+                var physical = settings as AddDamageResistancePhysical;
+                if (physical != null)
+                    o.ObservedDetails.Add("UNVERIFIED physical bypass: OR=" + physical.Or
+                        + ", material=" + (physical.BypassedByMaterial ? physical.Material.ToString() : "disabled")
+                        + ", form=" + (physical.BypassedByForm ? physical.Form.ToString() : "disabled")
+                        + ", magicMinimum=" + (physical.BypassedByMagic ? physical.MinEnhancementBonus.ToString() : "disabled")
+                        + ", alignment=" + (physical.BypassedByAlignment ? physical.Alignment.ToString() : "disabled")
+                        + ", reality=" + (physical.BypassedByReality ? physical.Reality.ToString() : "disabled")
+                        + ", weaponType=" + physical.BypassedByWeaponType + ", melee=" + physical.BypassedByMeleeWeapon
+                        + ", epic=" + physical.BypassedByEpic + ", validWeapons=" + physical.ValidWeaponFact
+                        + ", attackTypes=" + physical.ValidWeaponAttackTypes);
                 if (poolSnapshot.Presence == ProtectionPoolPresence.Present) o.HasConsumablePool = true;
                 if (poolSnapshot.Presence == ProtectionPoolPresence.Unknown) o.Missing.Add("Pool usage flag is unavailable; cached pool amount is not proof of a pool");
                 // Never assign Kind/reduction/bypass from cached numbers alone.

@@ -19,6 +19,32 @@ static class BetaTests
     public static void Run()
     {
         var input = Input(); var model = BetaModel.Build(input, "shown-1");
+        Check(WeaponModelRules.StrengthDamage(4, true) == 6 && WeaponModelRules.StrengthDamage(4, false) == 4, "longsword actual two-hand grip changes strength damage from four to six");
+        Check(WeaponModelRules.StrengthDamage(-2, true) == -2 && WeaponModelRules.StrengthDamage(0, true) == 0, "negative strength penalty is not multiplied by two-hand grip");
+        Check(WeaponModelRules.StrengthDamage(3, true) == 4, "odd positive strength multiplier rounds down");
+        Check(WeaponModelRules.BasicPattern(2, true, false, 1, 0).SequenceEqual(new[] { 0, 0 }), "Zen Archer flurry adds a highest-bonus attack without BAB-six prerequisite");
+        Check(WeaponModelRules.BasicPattern(2, false, false, 1, 0).SequenceEqual(new[] { 0 }), "standard bow attack does not gain full-attack flurry");
+        Check(WeaponModelRules.BasicPattern(6, true, false, 1, 0).SequenceEqual(new[] { 0, 0, 5 }), "extra highest-bonus attack remains distinct from BAB iterative penalty");
+        Check(WeaponModelRules.BasicPattern(6, true, false, 1, 1).SequenceEqual(new[] { 0, 0, 0, 5 }), "flurry and one haste attack add without replacing iteratives");
+        Check(WeaponModelRules.BasicPattern(16, true, true, 1, 1).SequenceEqual(new[] { 0 }), "unmodeled natural extras do not fabricate manufactured iteratives");
+        Check(WeaponModelRules.CountPattern(2, 2, true).SequenceEqual(new[] { 0, 0, 0, 0 }), "observed flawless iteratives keep zero penalties");
+        var flurryInput = new BetaInput("lann", "target", "bow", "turn", "flurry", 2, 7, 20, 1, 8, 0, 20, 3, true, true, false,
+            attackPenalties: new[] { 0, 0 }, attackCountSource: "active-extra-attack-components", attackCountReasons: new[] { "질풍격 +1" }, grip: "ranged");
+        var flurry = BetaModel.Build(flurryInput, "flurry");
+        Check(flurry.Rows.Count == 2 && flurry.Rows.All(r => r.AB == 7), "two observed +7 bow attacks rendered independently");
+        Near(PanelPresentation.TotalRaw(flurry).Value, 2 * flurry.Rows[0].ExpectedRaw.Value, "flurry total includes both attacks");
+        var flurryTracker = new BetaTracker(); flurryTracker.Shown(flurry, 0); flurryTracker.Begin("flurry-2", flurryInput, 1, true, 1);
+        Check(!flurryTracker.Finish("flurry-2", "lann", "target", "bow", true, 7, 20, 1, 8, 0, 2, 1).HasDifference,
+            "second flurry attack is modeled at same bonus rather than skipped or penalized five");
+        var correctedSword = BetaModel.Build(new BetaInput("rider", "target", "sword", "turn", "grip", 2, 5, 15, 1, 8,
+            WeaponModelRules.StrengthDamage(4, true), 19, 2, false, true, false, grip: "two-handed"), "two-hand");
+        Near(correctedSword.Rows[0].Normal.Value.Mean, 10.5, "corrected 1d8+6 normal average");
+        Near(correctedSword.Rows[0].MeanOnHit.Value, 11.55, "corrected 1d8+6 conditional mean includes critical chance");
+        float leftX, leftY;
+        PanelPresentation.PlaceLeft(2560, 1440, 720, 341, out leftX, out leftY);
+        Check(leftX == 24 && leftY == 160, "new panel defaults to left rather than centered over combat");
+        Check(PanelPresentation.CompactHeight(4, 1, true, 1440) < 400, "rider plus three natural attacks fits compact expanded layout");
+        Check(PanelPresentation.CompactHeight(24, 4, true, 720) <= 420, "large attack list is height-bounded and scrollable");
         Check(model.Rows.Count == 4, "BAB16 basic primary iteratives");
         double[] hits = { .75, .5, .25, .05 };
         for (int i = 0; i < 4; i++)
@@ -214,6 +240,14 @@ static class BetaTests
             Near(row.GetProperty("meanOnHitManualScenario").GetDouble(), 8.85, "conditional mean includes manual DR when explicitly selected");
             Check(doc.RootElement.GetProperty("manualScenario").GetBoolean() && !doc.RootElement.GetProperty("afterDefenseAvailable").GetBoolean(),
                 "manual defense never certifies actual target defense");
+        }
+        recorder.RecordBetaPreview(flurry);
+        using (var doc = JsonDocument.Parse(lines.Last()))
+        {
+            Check(doc.RootElement.GetProperty("rows").GetArrayLength() == 2, "both flurry attacks persisted in log");
+            Check(doc.RootElement.GetProperty("attackCountSource").GetString() == "active-extra-attack-components"
+                && doc.RootElement.GetProperty("attackCountReasons")[0].GetString() == "질풍격 +1", "extra-attack cause logged without hardcoding actor identity");
+            Check(doc.RootElement.GetProperty("grip").GetString() == "ranged", "grip interpretation logged separately from attack bonus source");
         }
         Console.WriteLine("PASS: " + assertions + " read-only beta math/association/logging assertions (not in-game UI validation)");
     }

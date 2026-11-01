@@ -229,7 +229,7 @@ namespace CombatPreview
                 + ",\"rolls\":" + c.Rolls + ",\"sides\":" + c.Sides + ",\"bonus\":" + c.Bonus + ",\"multiplies\":" + Bool(c.Multiplies) + "}").ToArray()) + "]";
         }
         public bool RecordBetaPreview(BetaSnapshot preview, DefenseProfile manualScenario = null,
-            string observerStatus = null, long observedAB = 0, long observedAC = 0)
+            string observerStatus = null, long observedAB = 0, long observedAC = 0, long observedCounts = 0)
         {
             lock (gate)
             {
@@ -249,8 +249,13 @@ namespace CombatPreview
                     + ",\"quality\":\"PartialEstimate\",\"basis\":" + Quote(preview.Input.Source) + ",\"fullConditionsVerified\":false"
                     + ",\"totalsObserved\":" + Bool(preview.Input.Source.StartsWith("observed-"))
                     + ",\"naturalWeapon\":" + Bool(preview.Input.NaturalWeapon)
+                    + ",\"grip\":" + Quote(preview.Input.Grip)
+                    + ",\"fullAttack\":" + Bool(preview.Input.FullAttack) + ",\"bab\":" + preview.Input.BAB
+                    + ",\"attackCountSource\":" + Quote(preview.Input.AttackCountSource)
+                    + ",\"attackCountReasons\":" + StringArray(preview.Input.AttackCountReasons)
                     + ",\"completedRuleObserver\":" + Quote(observerStatus)
                     + ",\"observedABResults\":" + observedAB + ",\"observedACResults\":" + observedAC
+                    + ",\"observedAttackCounts\":" + observedCounts
                     + ",\"damageComponents\":" + BetaComponents(preview.Input.Components)
                     + ",\"manualScenario\":" + Bool(manualScenario != null)
                     + ",\"defensePartPresent\":" + Bool(preview.Input.DefensePartPresent) + ",\"afterDefenseAvailable\":false"

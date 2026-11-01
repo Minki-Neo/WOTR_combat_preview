@@ -30,7 +30,7 @@ namespace CombatPreview
         internal static string Id(object value)
         { return value == null ? "none" : ids.GetValue(value, v => new Token { Id = Interlocked.Increment(ref next) }).Id.ToString(CultureInfo.InvariantCulture); }
     }
-    internal static class BetaReader
+    internal static partial class BetaReader
     {
         internal const string KnownMvid = "90a9869c-2792-4c7b-bfb7-5a8b33da7c82";
         internal static bool Supported { get { return typeof(RuleAttackRoll).Module.ModuleVersionId.ToString() == KnownMvid; } }
@@ -87,16 +87,17 @@ namespace CombatPreview
             // Existing natural/empty-hand item only. Never create or initialize it.
             return unit?.Body == null ? null : AccessTools.Field(unit.Body.GetType(), "m_EmptyHandWeapon")?.GetValue(unit.Body) as ItemEntityWeapon;
         }
-        static ItemEntityWeapon SlotWeapon(object slot)
+        static ItemEntity SlotItem(object slot)
         {
             if (slot == null) return null;
             if (AccessTools.Field(slot.GetType(), "m_IsItemFake")?.GetValue(slot) as bool? == true) return null;
             var reference = AccessTools.Field(slot.GetType(), "m_ItemRef")?.GetValue(slot);
             var proxy = reference == null ? null : AccessTools.Field(reference.GetType(), "m_Proxy")?.GetValue(reference);
-            var item = proxy == null ? null : AccessTools.Field(proxy.GetType(), "<Entity>k__BackingField")?.GetValue(proxy) as ItemEntityWeapon;
+            var item = proxy == null ? null : AccessTools.Field(proxy.GetType(), "<Entity>k__BackingField")?.GetValue(proxy) as ItemEntity;
             if (item != null && AccessTools.Field(item.GetType(), "<RemoveFromSlotInProgress>k__BackingField")?.GetValue(item) as bool? == true) return null;
             return item;
         }
+        static ItemEntityWeapon SlotWeapon(object slot) { return SlotItem(slot) as ItemEntityWeapon; }
         static UnitEntityData PartEntity(object partReference)
         {
             if (partReference == null) return null;
@@ -137,9 +138,18 @@ namespace CombatPreview
         }
         static bool LoadedNatural(ItemEntityWeapon weapon)
         {
+            return WeaponTypeReady(weapon) && weapon.Blueprint.IsNatural;
+        }
+        internal static bool WeaponTypeReady(ItemEntityWeapon weapon)
+        {
             var bp = weapon.Blueprint;
             var reference = AccessTools.Field(bp.GetType(), "m_Type")?.GetValue(bp);
-            return reference != null && AccessTools.Field(reference.GetType(), "<Cached>k__BackingField")?.GetValue(reference) != null && bp.IsNatural;
+            return reference != null && AccessTools.Field(reference.GetType(), "<Cached>k__BackingField")?.GetValue(reference) != null;
+        }
+        internal static string CountStamp(UnitEntityData actor, ItemEntityWeapon weapon)
+        {
+            return BetaIdentity.Id(actor) + ":" + BetaIdentity.Id(weapon) + ":" + BetaIdentity.Id(Game.Instance?.TurnBasedCombatController?.CurrentTurn)
+                + ":" + FullMode(actor) + ":" + Cached(actor.Stats.BaseAttackBonus) + "|" + State(actor);
         }
         internal static string PairStamp(UnitEntityData unit, UnitEntityData target)
         {
@@ -186,7 +196,13 @@ namespace CombatPreview
             int bab = Cached(unit.Stats.BaseAttackBonus), extra = Cached(unit.Stats.AdditionalAttackBonus);
             int ac = Cached(target.Stats.AC), strength = (int)Math.Floor((Cached(unit.Stats.Strength) - 10) / 2.0);
             int damageExtra = Cached(unit.Stats.AdditionalDamage);
-            int bonus = damageExtra + (bp.IsRanged ? 0 : (bp.IsTwoHanded && strength > 0 ? strength * 3 / 2 : strength));
+            bool twoHands = TwoHandedGrip(unit, weapon);
+            int bonus = damageExtra + (bp.IsRanged ? 0 : WeaponModelRules.StrengthDamage(strength, twoHands));
+            string countSource; List<string> countReasons;
+            var pattern = ActiveExtraAttackPattern(unit, weapon, bab, full, out countSource, out countReasons);
+            var observedPattern = BetaRuntime.ReadAttackPattern(unit, weapon);
+            if (full && !bp.IsNatural && observedPattern != null)
+            { pattern = observedPattern; countSource = "observed-attack-count-rule"; }
             var dice = bp.BaseDamage;
             int rolls = dice.Rolls, sides = rolls == 0 ? 1 : dice.Dice.Sides();
             bool known = bp.DamageType != null && bp.DamageType.Type.ToString() == "Physical";
@@ -194,12 +210,13 @@ namespace CombatPreview
             string actor = BetaIdentity.Id(unit), victim = BetaIdentity.Id(target), item = BetaIdentity.Id(weapon), turnId = BetaIdentity.Id(turn);
             string values = string.Join("|", new[] { actor, victim, item, turnId, full.ToString(), Number(bab), Number(ability), Number(extra),
                 Number(ac), Number(rolls), Number(sides), Number(bonus), Number(bp.CriticalRollEdge), Number(bp.CriticalModifier.IntValue()),
-                State(unit), State(target), defensePart.ToString() });
+                State(unit), State(target), defensePart.ToString(), twoHands.ToString(), string.Join(",", pattern) });
             string signature;
             using (var sha = SHA256.Create()) signature = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(values))).Replace("-", "");
             return new BetaInput(actor, victim, item, turnId, signature, bab, checked(bab + ability + extra), ac,
                 rolls, sides, bonus, bp.CriticalRollEdge, bp.CriticalModifier.IntValue(), full, known, defensePart,
-                naturalWeapon: bp.IsNatural);
+                naturalWeapon: bp.IsNatural, attackPenalties: pattern, attackCountSource: countSource, attackCountReasons: countReasons,
+                grip: bp.IsRanged ? "ranged" : twoHands ? "two-handed" : "one-handed/basic-natural");
         }
     }
     internal static class BetaRuntime
@@ -211,6 +228,9 @@ namespace CombatPreview
         static readonly Dictionary<string, BetaSnapshot> built = new Dictionary<string, BetaSnapshot>();
         static readonly CompletedRuleCache ruleValues = new CompletedRuleCache();
         static readonly Dictionary<string, BetaInput> ruleWeapons = new Dictionary<string, BetaInput>();
+        sealed class CountEntry { internal int[] Pattern; internal long Time; }
+        static readonly Dictionary<string, CountEntry> attackCounts = new Dictionary<string, CountEntry>();
+        internal static long ObservedCounts;
         internal static long ObservedAB, ObservedAC;
         static long sequence;
         static int mainThread;
@@ -247,7 +267,8 @@ namespace CombatPreview
                     return new BetaInput(input.Actor, input.Target, input.Weapon, input.Turn,
                         input.Signature + "|rules:" + ab.Value + ":" + ac.Value + ":" + native.Signature,
                         input.BAB, ab.Value, ac.Value, native.Rolls, native.Sides, native.Bonus, native.CriticalEdge, native.Multiplier,
-                        full, native.DamageKnown, input.DefensePartPresent, native.Components, "observed-completed-rules", input.NaturalWeapon);
+                        full, native.DamageKnown, input.DefensePartPresent, native.Components, "observed-completed-rules", input.NaturalWeapon,
+                        input.AttackPenalties, input.AttackCountSource, input.AttackCountReasons, input.Grip);
             }
             return Main.Settings.UseObservedPreview && !observedFaulted ? observed.Read(input, clock.ElapsedMilliseconds) : input;
         }
@@ -280,7 +301,7 @@ namespace CombatPreview
             ruleWeapons[key] = new BetaInput(input.Actor, input.Target, input.Weapon, input.Turn, values,
                 input.BAB, evt.Result, input.AC, first.Rolls, first.Sides, first.Bonus, input.CriticalEdge, input.Multiplier,
                 input.FullAttack, components != null, input.DefensePartPresent, components ?? input.Components,
-                "observed-completed-rules", input.NaturalWeapon);
+                "observed-completed-rules", input.NaturalWeapon, input.AttackPenalties, input.AttackCountSource, input.AttackCountReasons, input.Grip);
             ruleValues.Put(key, evt.Result, clock.ElapsedMilliseconds);
             ObservedAB++;
         }
@@ -291,6 +312,27 @@ namespace CombatPreview
             if (evt.AttackType != AttackType.Melee && evt.AttackType != AttackType.Ranged) return;
             ruleValues.Put(BetaReader.PairStamp(evt.Initiator, evt.Target) + "|AC:" + evt.AttackType, evt.Result, clock.ElapsedMilliseconds);
             ObservedAC++;
+        }
+        internal static int[] ReadAttackPattern(UnitEntityData actor, ItemEntityWeapon weapon)
+        {
+            if (Main.Settings == null || !Main.Settings.UseObservedPreview) return null;
+            CountEntry entry;
+            if (!attackCounts.TryGetValue(BetaReader.CountStamp(actor, weapon), out entry)) return null;
+            long age = clock.ElapsedMilliseconds - entry.Time;
+            return age >= 0 && age <= 1500 ? (int[])entry.Pattern.Clone() : null;
+        }
+        internal static void ObserveCountResult(RuleCalculateAttacksCount evt)
+        {
+            if (!Enabled || !Main.Settings.UseObservedPreview || Thread.CurrentThread.ManagedThreadId != mainThread) return;
+            if (evt == null || !IsPanelActor(evt.Initiator) || evt.WeaponFilter != null || evt.ForcePrimaryAttackWeapon != null || evt.ForceIterativeNaturalAttacks) return;
+            var weapon = BetaReader.Primary(evt.Initiator);
+            if (weapon == null || !BetaReader.WeaponTypeReady(weapon) || weapon.Blueprint.IsNatural) return;
+            var hand = evt.Result?.PrimaryHand;
+            if (hand == null || hand.MainAttacks < 1 || hand.MainAttacks > 16 || hand.PenalizedAttacks < 0 || hand.PenalizedAttacks > 8) return;
+            var pattern = WeaponModelRules.CountPattern(hand.MainAttacks, hand.PenalizedAttacks, hand.FlawlessAttacks);
+            if (attackCounts.Count > 32) attackCounts.Clear();
+            attackCounts[BetaReader.CountStamp(evt.Initiator, weapon)] = new CountEntry { Pattern = pattern, Time = clock.ElapsedMilliseconds };
+            ObservedCounts++;
         }
         internal static void ObserveGameEstimate(RuleAttackRoll evt)
         {
@@ -323,7 +365,8 @@ namespace CombatPreview
                 var copy = new BetaInput(input.Actor, input.Target, input.Weapon, input.Turn, signature,
                     input.BAB, evt.AttackBonus, evt.TargetAC, first.Rolls, first.Sides, first.Bonus,
                     input.CriticalEdge, input.Multiplier, input.FullAttack, known, input.DefensePartPresent,
-                    parts, "observed-existing-estimate/basic-primary-iteratives", input.NaturalWeapon);
+                    parts, "observed-existing-estimate/basic-primary-iteratives", input.NaturalWeapon,
+                    input.AttackPenalties, input.AttackCountSource, input.AttackCountReasons, input.Grip);
                 observed.Store(input, copy, clock.ElapsedMilliseconds);
             }
             catch (NotSupportedException) { return; }
@@ -339,7 +382,7 @@ namespace CombatPreview
             tracker.Shown(snapshot, clock.ElapsedMilliseconds);
             Main.Diagnostics?.PreviewShown(snapshot);
         }
-        internal static void Invalidate() { tracker.Invalidate(); observed.Clear(); built.Clear(); ruleValues.Clear(); ruleWeapons.Clear(); }
+        internal static void Invalidate() { tracker.Invalidate(); observed.Clear(); built.Clear(); ruleValues.Clear(); ruleWeapons.Clear(); attackCounts.Clear(); }
         internal static void InvalidateDisplayed() { tracker.Invalidate(); built.Clear(); }
         internal static bool AlertVisible { get { return Enabled && Main.Settings.BetaAlerts && clock.ElapsedMilliseconds < alertUntil; } }
         internal static void Before(RuleAttackWithWeapon evt)

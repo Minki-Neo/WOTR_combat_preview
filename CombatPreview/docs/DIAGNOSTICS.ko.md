@@ -1,4 +1,4 @@
-# 로컬 진단 사용법 — 0.3.2 베타
+# 로컬 진단 사용법 — 0.3.3 베타
 
 Ctrl+F10 → Combat Preview (Read-only Beta)에서 **베타 무기 미리보기 켜기**와
 **표시 모델과 실제 AB/AC/무기 구성의 차이를 로컬 로그에 기록**을 켭니다.
@@ -131,3 +131,18 @@ F6 상세/F7 대상 고정. 패널로 이동하거나 고정 뒤 대상을 벗�
 행의 `requiredD20`은 자연1 실패/자연20 명중을 반영한 최소 눈금(2–20)입니다.
 AC17/AB9라면 8입니다. 전체 상태/확률 효과는 미확정이므로 fullConditionsVerified는 계속 false입니다.
 새 postfix의 실제 설치/콜백/상호 운용은 사용자 게임에서 확인해야 합니다.
+
+## 0.3.3 잡기/공격 수/방어 증거
+
+`grip`은 실제 판독한 잡기 해석, `fullAttack`/`bab`는 기본 공격 모드/공격 보너스,
+`attackCountSource`는 basic-bab / active-extra-attack-components / observed-attack-count-rule입니다.
+`attackCountReasons`에 판독 가능한 활성 추가 공격 효과명과 수를 기록합니다. `observedAttackCounts`는
+완료된 공격 수 관측 횟수입니다. 행별 penalty=0인 두 행은 같은 AB의 추가 공격이며 -5 반복이 아닙니다.
+관측 패턴이 있으면 활성 효과 수를 다시 더하지 않아 중복 계산하지 않습니다.
+
+방어의 `defenseObserved`에는 energy resistance type 및 physical bypass: OR/material/form/magicMinimum/
+alignment/reality/weaponType/melee/epic/validWeapons/attackTypes 같은 캐시/설정 증거를 추가합니다.
+값이 있다는 이유로 관통 판정이나 후처리 피해 계산이 지원되는 것은 아닙니다. 미확인 상태를 유지합니다.
+
+현재 파일이 가득 차면 `.prev`로 회전합니다. 이번 사용자.prev의 최신0.3.2 세션은 순번1–97의
+미리보기만 담았고 이후 실제 공격은 현재 파일에 있을 수 있습니다. 두 파일을 함께 전달하세요.

@@ -20,8 +20,9 @@ namespace CombatPreview
         public bool Detailed = true;
         public bool PanelDetails;
         public string DetailsKey = "F6", PinKey = "F7";
-        public float X = 30, Y = 160, Scale = 1, Width = 820;
-        public bool AnchorAboveActionBar = true;
+        public float X = 24, Y = 160, Scale = 1, Width = 720;
+        public bool AnchorAboveActionBar;
+        public bool AnchorLeft = true;
         public bool UseObservedPreview = true;
         public int PanelLayoutVersion;
         internal bool Enabled;
@@ -57,12 +58,11 @@ namespace CombatPreview
         {
             Log = modEntry.Logger;
             Settings = UnityModManager.ModSettings.Load<Settings>(modEntry);
-            if (Settings.PanelLayoutVersion < 1)
+            if (Settings.PanelLayoutVersion < 2)
             {
-                Settings.AnchorAboveActionBar = true;
-                if (Settings.Width < 620) Settings.Width = 820;
-                Settings.PanelDetails = false;
-                Settings.PanelLayoutVersion = 1;
+                Settings.AnchorAboveActionBar = false; Settings.AnchorLeft = true;
+                Settings.Width = 720; Settings.X = 24; Settings.Y = 160;
+                Settings.PanelLayoutVersion = 2;
             }
             Settings.Enabled = false;
             Settings.ScenarioConfirmed = false;
@@ -137,13 +137,16 @@ namespace CombatPreview
             Settings.BetaAlerts = GUILayout.Toggle(Settings.BetaAlerts, "모델 차이 알림 표시 (미반영 효과일 수 있음; 팝업으로 전투를 막지 않음)");
             bool observed = GUILayout.Toggle(Settings.UseObservedPreview, "이미 실행된 AB/AC 계산 결과와 피해 구성 읽기 (추가 규칙 실행 없음)");
             if (observed != Settings.UseObservedPreview) { Settings.UseObservedPreview = observed; HoverChance.Invalidate(); SyncRuleObservers(); }
-            GUILayout.Label("완료된 규칙 관측: " + (PassiveRuleResults.Installed ? "ON" : "OFF") + " | AB " + BetaRuntime.ObservedAB + " / AC " + BetaRuntime.ObservedAC);
+            GUILayout.Label("완료된 규칙 관측: " + (PassiveRuleResults.Installed ? "ON" : "OFF") + " | AB " + BetaRuntime.ObservedAB + " / AC " + BetaRuntime.ObservedAC + " / 공격 수 " + BetaRuntime.ObservedCounts);
             GUILayout.BeginHorizontal();
             GUILayout.Label("상세 키"); Settings.DetailsKey = GUILayout.TextField(Settings.DetailsKey, GUILayout.Width(70));
             GUILayout.Label("대상 고정 키"); Settings.PinKey = GUILayout.TextField(Settings.PinKey, GUILayout.Width(70));
             GUILayout.EndHorizontal();
-            Settings.AnchorAboveActionBar = GUILayout.Toggle(Settings.AnchorAboveActionBar, "하단 행동 막대 위 중앙에 자동 배치");
-            GUILayout.Label("기수/탈것의 읽힌 무기별 기본 모델입니다. 가속/연타/제조 보조손 및 DR·저항·보호막 적용 피해는 미지원입니다.");
+            bool left = GUILayout.Toggle(Settings.AnchorLeft, "좌측에 압축 배치");
+            if (left != Settings.AnchorLeft) { Settings.AnchorLeft = left; if (left) Settings.AnchorAboveActionBar = false; }
+            bool centered = GUILayout.Toggle(Settings.AnchorAboveActionBar, "하단 행동 막대 위 중앙 배치");
+            if (centered != Settings.AnchorAboveActionBar) { Settings.AnchorAboveActionBar = centered; if (centered) Settings.AnchorLeft = false; }
+            GUILayout.Label("양손 잡기와 확인된 추가 공격 효과를 반영합니다. 모든 추가 타격/제조 보조손 및 DR·저항·보호막 적용 피해는 미확인입니다.");
             bool localDiagnostics = GUILayout.Toggle(Settings.LocalDiagnostics, "Local passive attack diagnostics (no extra rules/dice; max 2 MiB)");
             if (localDiagnostics != Settings.LocalDiagnostics) { Settings.LocalDiagnostics = localDiagnostics; Diagnostics?.Reset(); }
             GUILayout.Label("베타 차이 기록: " + BetaRuntime.DifferenceCount + " | 기대 피해와 한 번의 무작위 피해는 불일치로 판정하지 않습니다.");
@@ -153,7 +156,7 @@ namespace CombatPreview
             Settings.Scale = GUILayout.HorizontalSlider(Settings.Scale, 0.7f, 1.6f);
             GUILayout.Label("Panel width");
             Settings.Width = GUILayout.HorizontalSlider(Settings.Width, 620, 1100);
-            if (GUILayout.Button("패널 위치 초기화 (행동 막대 위 중앙)")) { Settings.AnchorAboveActionBar = true; Settings.Width = 820; Settings.Scale = 1; }
+            if (GUILayout.Button("패널 위치 초기화 (좌측 압축)")) { Settings.AnchorLeft = true; Settings.AnchorAboveActionBar = false; Settings.Width = 720; Settings.Scale = 1; }
             GUILayout.Label("자동 방어 적용 피해는 계산 불가입니다. 수동 시나리오는 실제 대상 방어가 아닙니다.");
             Settings.ManualScenario = GUILayout.Toggle(Settings.ManualScenario, "수동 물리 방어 시나리오 (실제 대상 방어 아님)");
             if (Settings.ManualScenario)

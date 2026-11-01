@@ -13,10 +13,14 @@ namespace CombatPreview
         public readonly string Source;
         public readonly IReadOnlyList<DamageComponentSnapshot> Components;
         public readonly bool NaturalWeapon;
+        public readonly IReadOnlyList<int> AttackPenalties;
+        public readonly string AttackCountSource, Grip;
+        public readonly IReadOnlyList<string> AttackCountReasons;
         public BetaInput(string actor, string target, string weapon, string turn, string signature,
             int bab, int ab, int ac, int rolls, int sides, int bonus, int edge, int multiplier,
             bool fullAttack, bool damageKnown, bool defensePartPresent,
-            IEnumerable<DamageComponentSnapshot> components = null, string source = "cached-stats/basic-primary-weapon", bool naturalWeapon = false)
+            IEnumerable<DamageComponentSnapshot> components = null, string source = "cached-stats/basic-primary-weapon", bool naturalWeapon = false,
+            IEnumerable<int> attackPenalties = null, string attackCountSource = "basic-bab", IEnumerable<string> attackCountReasons = null, string grip = "unknown")
         {
             if (new[] { actor, target, weapon, turn, signature }.Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("Missing beta identity");
             if (bab < 0 || bab > 100 || edge < 2 || edge > 20 || multiplier < 1 || multiplier > 10
@@ -27,6 +31,11 @@ namespace CombatPreview
             DefensePartPresent = defensePartPresent;
             Source = source;
             NaturalWeapon = naturalWeapon;
+            var penalties = (attackPenalties ?? WeaponModelRules.BasicPattern(bab, fullAttack, naturalWeapon, 0, 0)).ToArray();
+            if (penalties.Length == 0 || penalties.Length > 24 || penalties.Any(p => p < 0 || p > 100)) throw new ArgumentException("Invalid attack pattern");
+            AttackPenalties = Array.AsReadOnly(penalties);
+            AttackCountSource = attackCountSource; Grip = grip;
+            AttackCountReasons = Array.AsReadOnly((attackCountReasons ?? new string[0]).ToArray());
             var copy = (components ?? new[] { new DamageComponentSnapshot(new DamageTerm(rolls, sides, bonus, true)
                 { Kind = DamageKind.Physical }, false, null) }).ToArray();
             if (copy.Length == 0 || copy.Length > 32 || copy.Any(c => c == null)) throw new ArgumentException("Invalid damage components");
@@ -57,8 +66,8 @@ namespace CombatPreview
         {
             Id = id; Input = input; Rows = Array.AsReadOnly(rows.ToArray());
             Notes = Array.AsReadOnly(new[] {
-                "제조 무기는 기본 BAB 반복, 자연 무기는 기존 무기 슬롯별 1회 모델입니다. 실제 전체 순서·횟수는 미확정입니다.",
-                "기승 시 기수와 탈것을 나누어 표시합니다. 가속·연타·보조손 등 추가 타격은 미확인입니다.",
+                "제조 무기는 판독된 추가/반복 공격, 자연 무기는 기존 슬롯별 1회 모델입니다. 실제 전체 순서는 미확정입니다.",
+                "확인된 질풍격/가속 효과를 합산합니다. 제조 보조손 등 알 수 없는 추가 타격은 미확인입니다.",
                 input.Source.StartsWith("observed-")
                     ? "최근 게임 추정의 AB/AC/피해 구성 사본입니다. 첫 공격을 기본 반복 모델에 적용하며 완전한 조건 일치는 미확정입니다."
                     : "무기 강화·특기·명중/피해 능력치 치환·조건부 발동 효과는 미반영입니다.",
@@ -80,10 +89,10 @@ namespace CombatPreview
         {
             if (input == null || string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Missing beta model input");
             var rows = new List<BetaRow>();
-            int count = input.FullAttack && !input.NaturalWeapon ? Math.Min(4, 1 + Math.Max(0, input.BAB - 1) / 5) : 1;
+            int count = input.AttackPenalties.Count;
             for (int i = 0; i < count; i++)
             {
-                var row = new BetaRow { Index = i, Penalty = i * 5, AB = input.AttackBonus - i * 5, AC = input.AC };
+                var row = new BetaRow { Index = i, Penalty = input.AttackPenalties[i], AB = input.AttackBonus - input.AttackPenalties[i], AC = input.AC };
                 int hits = 0, threats = 0, confirms = 0;
                 for (int d = 1; d <= 20; d++)
                 {

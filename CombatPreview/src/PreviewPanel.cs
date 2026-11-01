@@ -9,7 +9,7 @@ namespace CombatPreview
     partial class HoverChance
     {
         Vector2 panelScroll;
-        GUIStyle panelStyle, titleStyle, textStyle, mutedStyle, numberStyle, hitStyle, cardStyle;
+        GUIStyle panelStyle, titleStyle, textStyle, mutedStyle, numberStyle, hitStyle, cardStyle, rowStyle;
         Texture2D panelTexture, cardTexture;
         float panelWidth, panelHeight, nextBarSearch;
         RectTransform actionBar;
@@ -36,15 +36,16 @@ namespace CombatPreview
             titleStyle.normal.textColor = Gold;
             mutedStyle = new GUIStyle(textStyle) { fontSize = 12 };
             mutedStyle.normal.textColor = new Color(.68f, .66f, .62f);
-            numberStyle = new GUIStyle(textStyle) { fontSize = 20, fontStyle = FontStyle.Bold };
+            numberStyle = new GUIStyle(textStyle) { fontSize = 14, fontStyle = FontStyle.Bold };
             numberStyle.normal.textColor = new Color(.87f, .75f, .51f);
             hitStyle = new GUIStyle(numberStyle);
             hitStyle.normal.textColor = new Color(.65f, .80f, .55f);
-            panelStyle = new GUIStyle { padding = new RectOffset(16, 16, 12, 12) };
+            panelStyle = new GUIStyle { padding = new RectOffset(12, 12, 8, 8) };
             panelStyle.normal.background = panelTexture;
             panelStyle.onNormal.background = panelTexture;
-            cardStyle = new GUIStyle { padding = new RectOffset(10, 10, 10, 10), margin = new RectOffset(0, 0, 3, 3) };
+            cardStyle = new GUIStyle { padding = new RectOffset(6, 6, 4, 4), margin = new RectOffset(0, 0, 1, 1) };
             cardStyle.normal.background = cardTexture;
+            rowStyle = new GUIStyle(textStyle) { fontSize = 13, wordWrap = false, clipping = TextClipping.Clip, alignment = TextAnchor.MiddleLeft };
         }
         void DisposePanel()
         { if (panelTexture != null) Destroy(panelTexture); if (cardTexture != null) Destroy(cardTexture); if (inputBlocker != null) Destroy(inputBlocker); }
@@ -119,30 +120,24 @@ namespace CombatPreview
                 panelWidth = Mathf.Min(Mathf.Clamp(settings.Width, 620, 1100), sw - 12);
                 int rows = Math.Max(1, panelAttacks.Sum(a => a.Snapshot?.Rows.Count ?? 1));
                 int components = Math.Max(1, panelAttacks.Select(a => a.Snapshot?.Input.Components.Count ?? 1).DefaultIfEmpty(1).Max());
-                float wanted = 188 + rows * Mathf.Max(90, components * 22 + 34) + (settings.PanelDetails ? rows * 55 + 60 : 0);
-                float height = Mathf.Min(wanted, sh * .72f);
+                float height = PanelPresentation.CompactHeight(rows, components, settings.PanelDetails, sh);
                 panelHeight = height;
                 float x = settings.X, y = settings.Y;
-                if (settings.AnchorAboveActionBar)
+                if (settings.AnchorLeft) PanelPresentation.PlaceLeft(sw, sh, panelWidth, height, out x, out y);
+                else if (settings.AnchorAboveActionBar)
                     PanelPresentation.Place(sw, sh, panelWidth, height, ActionBarTop() / scale, out x, out y);
                 var rect = new Rect(Mathf.Clamp(x, 0, Mathf.Max(0, sw - panelWidth)), Mathf.Clamp(y, 0, Mathf.Max(0, sh - height)), panelWidth, height);
                 var moved = GUI.Window(739261, rect, DrawPanel, "", panelStyle);
                 if (Mathf.Abs(moved.x - rect.x) > .1f || Mathf.Abs(moved.y - rect.y) > .1f)
-                    settings.AnchorAboveActionBar = false;
+                { settings.AnchorAboveActionBar = false; settings.AnchorLeft = false; }
                 settings.X = moved.x; settings.Y = moved.y;
                 panelScreenRect = new Rect(moved.x * scale, moved.y * scale, moved.width * scale, moved.height * scale);
                 UpdatePanelBlocker(panelScreenRect);
             }
             finally { GUI.matrix = old; }
         }
-        void Cell(string heading, string value, float width, GUIStyle valueStyle, string detail = null)
-        {
-            GUILayout.BeginVertical(GUILayout.Width(width));
-            GUILayout.Label(heading, mutedStyle);
-            GUILayout.Label(value, valueStyle);
-            if (detail != null) GUILayout.Label(detail, mutedStyle);
-            GUILayout.EndVertical();
-        }
+        void TableCell(string value, float width, GUIStyle style = null)
+        { GUILayout.Label(value, style ?? rowStyle, GUILayout.Width(width)); }
         MitigatedResult Scenario(BetaSnapshot snapshot, BetaRow row)
         {
             if (!Main.Settings.ManualScenario || !Main.Settings.ScenarioConfirmed || !snapshot.Input.DamageKnown) return null;
@@ -162,57 +157,57 @@ namespace CombatPreview
             }
             finally { GUI.color = color; }
             var settings = Main.Settings;
-            GUILayout.Label("◆  전투 미리보기  ◆", titleStyle);
-            GUILayout.Label(attacker.CharacterName + "  →  " + m_Target.CharacterName + "    |    " + (targetHealth ?? "체력 확인 불가"), textStyle);
-            GUILayout.Label((panelHeld ? "표시 시점 정보 보관 중 · 대상 위로 돌아가면 갱신" : retention.Pinned ? "대상 고정 중" : "대상 고정 " + settings.PinKey) + "  |  상세 " + settings.DetailsKey, mutedStyle);
+            GUILayout.Label("전투 미리보기 · " + m_Target.CharacterName + "  |  " + (targetHealth ?? "체력 미확인"), titleStyle);
+            GUILayout.Label((panelHeld ? "보관 중 · 대상 위로 돌아가면 갱신" : retention.Pinned ? "고정 중" : settings.PinKey + " 고정") + "  |  " + settings.DetailsKey + " 상세  |  ~ 기본 추정", mutedStyle);
             bool manual = settings.ManualScenario && settings.ScenarioConfirmed;
-            double manualTotal = 0;
-            bool manualComplete = manual;
+            double manualTotal = 0; bool manualComplete = manual;
+            float available = Mathf.Max(120, panelWidth - 56);
+            float actorW = available * .32f, hitW = available * .10f, diceW = available * .24f, meanW = available * .13f, expectedW = available * .21f;
+            GUILayout.BeginHorizontal();
+            TableCell("공격자 · 무기 / 타격", actorW, mutedStyle);
+            TableCell("명중", hitW, mutedStyle);
+            TableCell("피해 주사위", diceW, mutedStyle);
+            TableCell("명중 평균", meanW, mutedStyle);
+            TableCell("기댓값 후/전", expectedW, mutedStyle);
+            GUILayout.EndHorizontal();
             panelScroll = GUILayout.BeginScrollView(panelScroll);
+            int displayIndex = 0;
             foreach (var attack in panelAttacks)
             {
-                GUILayout.Label(attack.Role + " · " + attack.Actor + "  |  " + (attack.Weapon ?? "공격 정보"), titleStyle);
                 var snapshot = attack.Snapshot;
+                string identity = attack.Actor + " · " + (attack.Weapon ?? attack.Role);
                 if (snapshot == null)
-                {
-                    GUILayout.Label(attack.Reason, mutedStyle); manualComplete = false; continue;
-                }
+                { GUILayout.Label(identity + " — " + attack.Reason, rowStyle); manualComplete = false; continue; }
                 bool observedTotals = snapshot.Input.Source.StartsWith("observed-");
-                GUILayout.Label(observedTotals ? "최근 완료된 규칙의 AB/AC 관측값 · 현재 조건의 완전 일치는 미확정" : "기본 능력치 추정 · 최종 명중 보정/상황별 AC 미확인", mutedStyle);
                 foreach (var row in snapshot.Rows)
                 {
                     var scenario = Scenario(snapshot, row);
                     double? expected = scenario != null && scenario.Available ? scenario.Expected : (double?)null;
                     double? mean = expected.HasValue && row.Hit > 0 ? expected.Value / row.Hit : row.MeanOnHit;
-                    float available = Mathf.Max(120, panelWidth - 70);
                     GUILayout.BeginHorizontal(cardStyle);
-                    Cell("공격", "#" + (row.Index + 1), available * .08f, numberStyle);
-                    Cell(observedTotals ? "명중률" : "추정 명중률", row.Hit.ToString("P0"), available * .13f, hitStyle);
-                    Cell("피해 주사위", PanelPresentation.DiceLines(snapshot.Input), available * .31f, textStyle);
-                    Cell("명중 시 평균", PanelPresentation.Value(mean), available * .20f, numberStyle, manual ? "수동 방어 · 치명 포함" : "방어 전 · 치명 포함");
-                    Cell(manual ? "수동 방어 기댓값" : "방어 반영 기댓값", PanelPresentation.Value(expected), available * .28f, numberStyle,
-                        expected.HasValue ? "실제 대상 방어 아님" : "방어 전 " + PanelPresentation.Value(row.ExpectedRaw));
+                    TableCell("#" + (++displayIndex) + " " + identity, actorW);
+                    TableCell((observedTotals ? "" : "~") + row.Hit.ToString("P0"), hitW, hitStyle);
+                    TableCell(PanelPresentation.DiceLines(snapshot.Input), diceW, textStyle);
+                    TableCell(PanelPresentation.Value(mean), meanW, numberStyle);
+                    TableCell(PanelPresentation.Value(expected) + " / " + PanelPresentation.Value(row.ExpectedRaw), expectedW, numberStyle);
                     GUILayout.EndHorizontal();
                     if (settings.PanelDetails)
-                    {
-                        GUILayout.Label((observedTotals ? "관측된 최종 AC " : "일반 AC 추정 ") + row.AC
-                            + "  |  " + (observedTotals ? "관측된 명중 보정 합계 " : "기본 명중 보정 합계 ") + row.AB.ToString("+0;-0;0"), textStyle);
-                        GUILayout.Label("d20 + (" + row.AB + ") ≥ " + row.AC + "  →  " + AttackThreshold.Describe(row.AB, row.AC), textStyle);
-                        GUILayout.Label("자연 1 실패 / 자연 20 명중 · 은폐/재굴림/치명타 면역 등 미반영", mutedStyle);
-                    }
+                        GUILayout.Label((observedTotals ? "관측" : "추정") + " AC " + row.AC + " · AB " + row.AB.ToString("+0;-0;0")
+                            + " · " + AttackThreshold.Describe(row.AB, row.AC), rowStyle);
                     manualComplete &= expected.HasValue;
                     if (expected.HasValue) manualTotal += expected.Value;
                 }
+                if (settings.PanelDetails && snapshot.Input.AttackCountReasons.Count > 0)
+                    GUILayout.Label("추가 공격: " + string.Join(", ", snapshot.Input.AttackCountReasons.ToArray()), rowStyle);
             }
             GUILayout.EndScrollView();
             GUILayout.BeginHorizontal();
-            GUILayout.Label("표시 공격 합계 기댓값", titleStyle);
-            GUILayout.Label(manualComplete ? PanelPresentation.Value(manualTotal) + " (수동 방어)"
-                : "—  |  방어 전 " + PanelPresentation.Value(PanelPresentation.TotalRaw(panelAttacks.Select(a => a.Snapshot))), numberStyle);
-            if (GUILayout.Button(settings.PanelDetails ? "접기 [" + settings.DetailsKey + "]" : "상세 [" + settings.DetailsKey + "]", GUILayout.Width(95))) settings.PanelDetails = !settings.PanelDetails;
+            GUILayout.Label("표시 공격 합계 (후/전)", rowStyle);
+            GUILayout.Label((manualComplete ? PanelPresentation.Value(manualTotal) + " (수동)" : "—") + " / "
+                + PanelPresentation.Value(PanelPresentation.TotalRaw(panelAttacks.Select(a => a.Snapshot))), numberStyle);
+            if (GUILayout.Button(settings.PanelDetails ? "접기 " + settings.DetailsKey : "상세 " + settings.DetailsKey, GUILayout.Width(82))) settings.PanelDetails = !settings.PanelDetails;
             GUILayout.EndHorizontal();
-            GUILayout.Label(manual ? "수동 시나리오 · 실제 대상 방어가 아닙니다." : "DR·저항·보호막 미확인: 방어 반영 기댓값은 —", mutedStyle);
-            GUILayout.Label("기수/탈것의 읽힌 공격만 합산 · 추가 공격/보조손/조건부 효과는 일부 미확인", mutedStyle);
+            GUILayout.Label(manual ? "후=수동 방어 시나리오 · 실제 대상 방어 아님" : "후=DR·저항 반영(미확인 —) / 전=방어 전 · 평균은 치명 포함", mutedStyle);
             GUI.DragWindow(new Rect(0, 0, 10000, 28));
             if (!panelHeld && Event.current.type == EventType.Repaint) foreach (var attack in panelAttacks) if (attack.Snapshot != null) BetaRuntime.Shown(attack.Snapshot);
         }

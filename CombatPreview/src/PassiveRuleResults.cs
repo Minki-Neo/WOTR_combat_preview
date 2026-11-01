@@ -4,7 +4,7 @@ using Kingmaker.RuleSystem.Rules;
 
 namespace CombatPreview
 {
-    // Two explicit POSTFIX observers. No PatchAll, prefixes, skipped originals,
+    // Three explicit POSTFIX observers. No PatchAll, prefixes, skipped originals,
     // changed args/results, rule constructors, handlers, or RNG calls.
     internal static class PassiveRuleResults
     {
@@ -22,6 +22,8 @@ namespace CombatPreview
                     postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterAB)) { priority = Priority.Last });
                 instance.Patch(AccessTools.Method(typeof(RuleCalculateAC), "OnTrigger"),
                     postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterAC)) { priority = Priority.Last });
+                instance.Patch(AccessTools.Method(typeof(RuleCalculateAttacksCount), "OnTrigger"),
+                    postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterCount)) { priority = Priority.Last });
                 harmony = instance; faulted = false;
             }
             catch { instance.UnpatchAll(Owner); throw; }
@@ -32,6 +34,8 @@ namespace CombatPreview
         { Read(() => BetaRuntime.ObserveABResult(__instance)); }
         static void AfterAC(RuleCalculateAC __instance)
         { Read(() => BetaRuntime.ObserveACResult(__instance)); }
+        static void AfterCount(RuleCalculateAttacksCount __instance)
+        { Read(() => BetaRuntime.ObserveCountResult(__instance)); }
         static void Read(Action read)
         {
             if (faulted) return;
