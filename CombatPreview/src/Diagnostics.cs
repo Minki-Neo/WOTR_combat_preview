@@ -228,7 +228,8 @@ namespace CombatPreview
             return components == null ? "null" : "[" + string.Join(",", components.Select(c => "{\"kind\":" + Quote(c.Kind.ToString())
                 + ",\"rolls\":" + c.Rolls + ",\"sides\":" + c.Sides + ",\"bonus\":" + c.Bonus + ",\"multiplies\":" + Bool(c.Multiplies) + "}").ToArray()) + "]";
         }
-        public bool RecordBetaPreview(BetaSnapshot preview, DefenseProfile manualScenario = null)
+        public bool RecordBetaPreview(BetaSnapshot preview, DefenseProfile manualScenario = null,
+            string observerStatus = null, long observedAB = 0, long observedAC = 0)
         {
             lock (gate)
             {
@@ -238,6 +239,7 @@ namespace CombatPreview
                     : null).ToArray();
                 string rows = "[" + string.Join(",", preview.Rows.Select((r, i) => "{\"index\":" + r.Index + ",\"penalty\":" + r.Penalty
                     + ",\"ab\":" + r.AB + ",\"ac\":" + r.AC + ",\"hit\":" + Number(r.Hit) + ",\"crit\":" + Number(r.Crit)
+                    + ",\"requiredD20\":" + AttackThreshold.Required(r.AB, r.AC)
                     + ",\"meanOnHitRaw\":" + NullableNumber(r.MeanOnHit)
                     + ",\"expectedManualScenario\":" + NullableNumber(scenarios[i] != null && scenarios[i].Available ? scenarios[i].Expected : (double?)null)
                     + ",\"meanOnHitManualScenario\":" + NullableNumber(scenarios[i] != null && scenarios[i].Available && r.Hit > 0 ? scenarios[i].Expected / r.Hit : (double?)null)
@@ -245,6 +247,10 @@ namespace CombatPreview
                 return Emit(clock(), "beta-preview", preview.Id, preview.Context(), "\"previewId\":" + Quote(preview.Id)
                     + ",\"betaActorId\":" + Quote(preview.Input.Actor) + ",\"betaTargetId\":" + Quote(preview.Input.Target) + ",\"betaWeaponId\":" + Quote(preview.Input.Weapon)
                     + ",\"quality\":\"PartialEstimate\",\"basis\":" + Quote(preview.Input.Source) + ",\"fullConditionsVerified\":false"
+                    + ",\"totalsObserved\":" + Bool(preview.Input.Source.StartsWith("observed-"))
+                    + ",\"naturalWeapon\":" + Bool(preview.Input.NaturalWeapon)
+                    + ",\"completedRuleObserver\":" + Quote(observerStatus)
+                    + ",\"observedABResults\":" + observedAB + ",\"observedACResults\":" + observedAC
                     + ",\"damageComponents\":" + BetaComponents(preview.Input.Components)
                     + ",\"manualScenario\":" + Bool(manualScenario != null)
                     + ",\"defensePartPresent\":" + Bool(preview.Input.DefensePartPresent) + ",\"afterDefenseAvailable\":false"

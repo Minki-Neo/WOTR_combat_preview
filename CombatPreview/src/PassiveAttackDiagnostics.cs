@@ -18,7 +18,7 @@ namespace CombatPreview
         readonly Stopwatch clock = Stopwatch.StartNew();
         readonly DiagnosticRecorder recorder;
         bool active;
-        string lastPreview;
+        readonly HashSet<string> loggedPreviews = new HashSet<string>();
         internal PassiveAttackDiagnostics(string path)
         {
             var log = new LocalDiagnosticLog(path); recorder = new DiagnosticRecorder(log.Write, () => clock.ElapsedMilliseconds);
@@ -31,15 +31,17 @@ namespace CombatPreview
                 { "tttAssemblyDetected", Compatibility.HasTabletopTweaks.ToString() }
             });
         }
-        internal void Reset() { recorder.Enabled = false; active = false; lastPreview = null; }
+        internal void Reset() { recorder.Enabled = false; active = false; loggedPreviews.Clear(); }
         internal void PreviewShown(BetaSnapshot snapshot)
         {
             if (!CanObserve() || snapshot == null || !Main.Settings.CompareBeta) return;
             var s = Main.Settings;
             bool manual = s.ManualScenario && s.ScenarioConfirmed;
             string key = snapshot.Id + "|" + manual + "|" + s.ScenarioDR + "|" + s.ScenarioBypassDR + "|" + s.ScenarioPhysicalImmune;
-            if (lastPreview == key) return;
-            if (recorder.RecordBetaPreview(snapshot, manual ? DefenseReader.Scenario(s) : null)) lastPreview = key;
+            if (loggedPreviews.Contains(key)) return;
+            if (loggedPreviews.Count > 256) loggedPreviews.Clear();
+            if (recorder.RecordBetaPreview(snapshot, manual ? DefenseReader.Scenario(s) : null,
+                PassiveRuleResults.Installed ? "Installed" : "Unavailable", BetaRuntime.ObservedAB, BetaRuntime.ObservedAC)) loggedPreviews.Add(key);
         }
         internal string Status { get { return recorder.Faulted ? "Stopped after a file write failure"
             : "Dropped by rate limit: " + recorder.Dropped + " | Ignored simulated events: " + recorder.IgnoredSimulated; } }

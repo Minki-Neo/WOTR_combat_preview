@@ -1,4 +1,4 @@
-# 로컬 진단 사용법 — 0.3.1 베타
+# 로컬 진단 사용법 — 0.3.2 베타
 
 Ctrl+F10 → Combat Preview (Read-only Beta)에서 **베타 무기 미리보기 켜기**와
 **표시 모델과 실제 AB/AC/무기 구성의 차이를 로컬 로그에 기록**을 켭니다.
@@ -111,3 +111,23 @@ python3 tools/analyze_diagnostics.py /tmp/new-beta-example.jsonl
 수동 시나리오를 선택하면 `manualScenario=true`이고 `expectedManualScenario` 및
 `meanOnHitManualScenario`를 별도로 기록합니다. 실제 대상의 `afterDefenseAvailable`은 계속 false입니다.
 기본 방어 전 수치는 덮어쓰지 않습니다. 화면의 `—`는 미확인이며 0을 의미하지 않습니다.
+
+## 0.3.2 기승/상세/완료 규칙 관측
+
+F6 상세/F7 대상 고정. 패널로 이동하거나 고정 뒤 대상을 벗어나면 표시 시점 정보를 보관하며
+보관 화면을 새 beta-preview로 기록하거나 tracker의 표시 시간을 갱신하지 않습니다.
+
+기수/탈것/각 자연 무기마다 별도의 beta-preview를 기록합니다. actor/target/weapon/turn ID가 각각
+실제 공격과 연결되며 자연 무기는 전역 attackIndex가 1,2여도 해당 무기 행에 연결합니다.
+같은 프레임의 여러 모델을 반복 기록하지 않도록 표시 ID와 수동 시나리오 키를 중복 억제합니다.
+
+새 basis `observed-completed-rules`는 이미 실행된 AB/AC 계산의 Result를 복사한 것입니다.
+가짜 굴림 생성 없이 직접 OnTrigger를 호출하는 외부 계산도 postfix가 관측할 수 있습니다.
+`completedRuleObserver`는 Installed/Unavailable, `observedABResults`와 `observedACResults`는 관측 횟수입니다.
+횟수가 0이면 해당 완료 경로가 아직 관측되지 않은 것입니다. 횟수가 있어도 현재 대상/무기/턴/제한 키 및
+1.5초 수명을 만족하는 한 쌍이 없으면 기본 모델로 돌아갑니다. 현재 모든 조건의 일치를 보장하지 않습니다.
+
+`totalsObserved`는 관측 출처 여부이며 정확도 통과가 아닙니다. `naturalWeapon`은 자연 무기 모델 여부,
+행의 `requiredD20`은 자연1 실패/자연20 명중을 반영한 최소 눈금(2–20)입니다.
+AC17/AB9라면 8입니다. 전체 상태/확률 효과는 미확정이므로 fullConditionsVerified는 계속 false입니다.
+새 postfix의 실제 설치/콜백/상호 운용은 사용자 게임에서 확인해야 합니다.

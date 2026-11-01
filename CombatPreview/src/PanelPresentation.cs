@@ -30,6 +30,18 @@ namespace CombatPreview
         { return number.HasValue ? number.Value.ToString("0.00", CultureInfo.InvariantCulture) : "—"; }
         public static double? TotalRaw(BetaSnapshot snapshot)
         { return snapshot.Rows.All(r => r.ExpectedRaw.HasValue) ? snapshot.Rows.Sum(r => r.ExpectedRaw.Value) : (double?)null; }
+        public static double? TotalRaw(System.Collections.Generic.IEnumerable<BetaSnapshot> snapshots)
+        {
+            bool any = false; double total = 0;
+            foreach (var snapshot in snapshots)
+            {
+                if (snapshot == null) return null;
+                var value = TotalRaw(snapshot);
+                if (!value.HasValue) return null;
+                total += value.Value; any = true;
+            }
+            return any ? total : (double?)null;
+        }
         public static void Place(float screenWidth, float screenHeight, float width, float height,
             float actionBarTop, out float x, out float y)
         {

@@ -19,6 +19,7 @@ namespace CombatPreview
         public bool ShowOnHover = false;
         public bool Detailed = true;
         public bool PanelDetails;
+        public string DetailsKey = "F6", PinKey = "F7";
         public float X = 30, Y = 160, Scale = 1, Width = 820;
         public bool AnchorAboveActionBar = true;
         public bool UseObservedPreview = true;
@@ -68,6 +69,7 @@ namespace CombatPreview
             modEntry.OnToggle = (e, enabled) =>
             {
                 Settings.Enabled = enabled && diagnosticsRegistered;
+                SyncRuleObservers();
                 if (!enabled) { Diagnostics?.Reset(); HoverChance.Invalidate(); }
                 return !enabled || diagnosticsRegistered;
             };
@@ -93,10 +95,12 @@ namespace CombatPreview
                 HoverChance.Create();
                 diagnosticsRegistered = true;
                 Settings.Enabled = true;
+                SyncRuleObservers();
             }
             catch (Exception e)
             {
                 Settings.Enabled = false;
+                try { PassiveRuleResults.Remove(); } catch (Exception cleanup) { Error("rule observer cleanup", cleanup); }
                 diagnosticsRegistered = false;
                 if (Diagnostics != null)
                     try { EventBus.Unsubscribe(Diagnostics); }
@@ -112,19 +116,34 @@ namespace CombatPreview
             return true;
         }
 
+        static void SyncRuleObservers()
+        {
+            try
+            {
+                if (Settings.Enabled && Settings.ShowOnHover && Settings.UseObservedPreview) PassiveRuleResults.Install();
+                else PassiveRuleResults.Remove();
+            }
+            catch (Exception e) { Error("Completed rule observer installation", e); }
+        }
+
         static void OnGUI(UnityModManager.ModEntry modEntry)
         {
             GUILayout.Label(Compatibility.Summary);
             foreach (var issue in Compatibility.Issues) GUILayout.Label(issue);
             GUILayout.Label("읽기 전용 베타: 기본 주무기 모델의 부분 추정입니다. 실제 게임 표시/비교는 베타 검증 중입니다.");
             bool show = GUILayout.Toggle(Settings.ShowOnHover, "베타 무기 미리보기 켜기 (기본 OFF)");
-            if (show != Settings.ShowOnHover) { Settings.ShowOnHover = show && Compatibility.CanPreview; HoverChance.Invalidate(); }
+            if (show != Settings.ShowOnHover) { Settings.ShowOnHover = show && Compatibility.CanPreview; HoverChance.Invalidate(); SyncRuleObservers(); }
             Settings.CompareBeta = GUILayout.Toggle(Settings.CompareBeta, "표시 모델과 실제 AB/AC/무기 구성의 차이를 로컬 로그에 기록");
             Settings.BetaAlerts = GUILayout.Toggle(Settings.BetaAlerts, "모델 차이 알림 표시 (미반영 효과일 수 있음; 팝업으로 전투를 막지 않음)");
-            bool observed = GUILayout.Toggle(Settings.UseObservedPreview, "게임이 이미 계산한 최근 미리보기의 AB/AC/피해 구성을 읽기 (추가 규칙 실행 없음)");
-            if (observed != Settings.UseObservedPreview) { Settings.UseObservedPreview = observed; HoverChance.Invalidate(); }
+            bool observed = GUILayout.Toggle(Settings.UseObservedPreview, "이미 실행된 AB/AC 계산 결과와 피해 구성 읽기 (추가 규칙 실행 없음)");
+            if (observed != Settings.UseObservedPreview) { Settings.UseObservedPreview = observed; HoverChance.Invalidate(); SyncRuleObservers(); }
+            GUILayout.Label("완료된 규칙 관측: " + (PassiveRuleResults.Installed ? "ON" : "OFF") + " | AB " + BetaRuntime.ObservedAB + " / AC " + BetaRuntime.ObservedAC);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("상세 키"); Settings.DetailsKey = GUILayout.TextField(Settings.DetailsKey, GUILayout.Width(70));
+            GUILayout.Label("대상 고정 키"); Settings.PinKey = GUILayout.TextField(Settings.PinKey, GUILayout.Width(70));
+            GUILayout.EndHorizontal();
             Settings.AnchorAboveActionBar = GUILayout.Toggle(Settings.AnchorAboveActionBar, "하단 행동 막대 위 중앙에 자동 배치");
-            GUILayout.Label("기본 반복 순서만 계산합니다. 가속/연타/보조손/탈것 추가 공격과 DR·저항·보호막 적용 피해는 미지원입니다.");
+            GUILayout.Label("기수/탈것의 읽힌 무기별 기본 모델입니다. 가속/연타/제조 보조손 및 DR·저항·보호막 적용 피해는 미지원입니다.");
             bool localDiagnostics = GUILayout.Toggle(Settings.LocalDiagnostics, "Local passive attack diagnostics (no extra rules/dice; max 2 MiB)");
             if (localDiagnostics != Settings.LocalDiagnostics) { Settings.LocalDiagnostics = localDiagnostics; Diagnostics?.Reset(); }
             GUILayout.Label("베타 차이 기록: " + BetaRuntime.DifferenceCount + " | 기대 피해와 한 번의 무작위 피해는 불일치로 판정하지 않습니다.");

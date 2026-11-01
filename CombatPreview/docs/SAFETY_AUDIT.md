@@ -1,3 +1,5 @@
+> 0.3.2 current policy: legacy replay/suppression patches stay blocked. Two opt-in, explicitly installed postfix observers now read completed AB/AC rules. Historical “no Harmony patches” statements below describe earlier versions. See the final section.
+
 > Current 0.3.0: legacy replay remains blocked. A separate opt-in read-only basic-weapon partial model is described in the final section. Earlier blanket hover-block statements describe 0.2.x.
 
 # State mutation audit — 0.2.1
@@ -122,3 +124,42 @@ clears the cache. This limited fingerprint still does not certify every conditio
 counted as an actual hit/damage or a successful comparison. All beta records keep fullConditionsVerified=false.
 Native callback ordering and the new UI have not been executed in the game; static inspection/build/tests do not
 prove complete state/RNG noninterference. Existing legacy replay remains blocked.
+
+## 0.3.2 mount graph, retained UI, completed-rule observers
+
+Existing UnitPartRider.m_SaddledUnitRef / UnitPartSaddled.m_RiderRef are resolved through raw
+EntityPartRef.m_Ref → EntityRef.m_Proxy → cached Proxy.Entity. The reciprocal live relationship is required;
+no EntityRef.Entity refresh, Ensure, mount action, pet creation or evaluator is called. Existing primary item
+can fall back to UnitBody.m_EmptyHandWeapon (raw field only); already existing natural secondary/additional
+limb slots are copied. Polymorph list selection uses its stored flag. Type-reference Cached is checked before
+natural/type getters. Natural slots get one model row, never manufactured BAB iteratives.
+Turn m_RiderActionState/m_MountActionState and m_AttackMode/m_MountAttackMode are read directly to avoid
+GetRider/GetMount entity-reference getter refresh during UI reads.
+
+PassiveRuleResults explicitly patches only RuleCalculateAttackBonus.OnTrigger and RuleCalculateAC.OnTrigger
+with Priority.Last postfix observers under owner CombatPreview.PassiveRuleResults. They do not change args,
+Result, original execution, contexts, rules, RNG or cleanup. No PatchAll or legacy patch class is installed.
+This covers completed rules even if another caller directly invokes OnTrigger without fake-roll bus events.
+Installation attempts owner-only rollback on failure. Preview/observed-source/mod disable removes that owner's
+postfixes; partial startup cleanup also attempts removal. Callback failures stop the observer and are caught.
+These lifecycle paths are compiled but not exercised inside the game.
+
+Result copies require selected actor or reciprocal mount, weapon, target, turn, position/HP/fact state and
+basic ability/BAB identity, with age<=1.5s. Current extra AB/AC fields are deliberately excluded from that
+LIMITED native key because real rule scopes may temporarily change them and clean up after OnTrigger.
+This does not certify unchanged buffs/ranks, modifiers, actions or every condition; every record remains
+fullConditionsVerified=false. Critical AC results and nonordinary attack types are excluded. Manufactured
+iterative penalties are not learned as a first attack. Natural results stay per weapon, including global
+nonzero attack indices. Displaying mount data does not replace the rider's tracker entry. No new game rule
+is ever constructed or triggered by these observers; they do not create a prediction on their own.
+
+F6 toggles details; F7 pins a known target. Pointer travel has a 1.2s grace; over-panel/pin can retain the
+panel only for the same attacker/turn and a living visible existing target. Away from target, stored UI
+is explicitly labeled held and is not republished as a fresh prediction. Return to target refreshes.
+An owned transparent Canvas/Image/GraphicRaycaster blocks underlying world clicks within the panel.
+No new EventSystem is created. Only owned objects/styles/textures are changed/destroyed.
+In-game interaction, action eligibility, patch ordering and all-state/all-RNG noninterference remain unrun.
+
+Selecting either member can show its reciprocal counterpart. Action-state choice follows the existing
+GetActionsStates rider-vs-mount branch with cached references; full-mode reads also respect selected member
+and the original noncontrollable/nonselected-rider fallback. The native result key includes attack mode.

@@ -1,6 +1,6 @@
 # Validation — diagnostic development history
 
-Latest: 0.3.1 beta UI cloud validation is recorded at the end. Earlier sections are historical results, including user-supplied 0.2.x runtime evidence.
+Latest: 0.3.2 mount/interaction/observer cloud validation is recorded at the end. Earlier sections are historical results, including user-supplied 0.2.x runtime evidence.
 
 Date: 2026-11-01 (Asia/Seoul). This records commands actually executed in the cloud instance.
 No game executable, Unity asset data, user save or interactive game session was supplied/run.
@@ -168,3 +168,25 @@ The final net472 build succeeded against supplied references with zero errors an
 warning. A sandboxed restore initially reported NU1900 (NuGet advisory endpoint unreachable); an escalated
 restore through the inherited proxy succeeded without disabling TLS/signatures/audit, and subsequent packaging
 completed without that advisory warning. Python packaging validates CRC and the exact six-file mod-only allowlist.
+
+## 0.3.2 — 2026-11-01 Asia/Seoul
+
+Executed C# assertions: **6699 original +138 contracts +306 beta =7143** passed. New pure checks cover
+mounted rider/mount/limb simultaneous tracker entries, natural nonzero global attack indices without BAB
+iteratives, combined sums/unknown mount refusal, hand-checked d20 thresholds and integer bounds, pointer
+travel/over-panel/pin/target/turn/death invalidation, and completed-result identity/age/clock/reset behavior.
+Independent Python math/manifest checks:509, two XML projects; syntax parser sees31 C# source/test files.
+The actual game-reference net472 build succeeds with zero errors and the existing unused Charge warning.
+
+User0.3.1 evidence confirms the old UI rendered but all80 models used basic inputs and all5 comparable rows
+still differed in AB. No in-game claim for the new observer is inferred from those records. The cloud cannot
+run Unity/the game. Two targeted Harmony postfix installation/removal, invocation ordering, reciprocal mount
+refs, existing natural slots, conditional AC/AB accuracy, F6/F7/input-raycast behavior and all-state/RNG
+preservation are **not yet tested in game**. No tests were disabled to pass. No proprietary binaries or raw user
+logs are included in the distribution. Earlier no-patch statements describe earlier versions; legacy replay
+and suppression patches remain blocked. See SAFETY_AUDIT.md for the new passive-observer boundary.
+
+Python packaging completed a full build and verified the six-file allowlist/CRC. The initial sandbox restore
+reported NU1900 while reaching the NuGet audit endpoint; an escalated restore through the inherited proxy
+succeeded, preserving TLS/signature/audit checks. Final packaging is repeated with that restored metadata.
+PowerShell packaging/ModFinder itself remain unrun on Linux. Source and installer ZIPs are inspected separately.

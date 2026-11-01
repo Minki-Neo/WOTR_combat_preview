@@ -31,6 +31,48 @@ static class BetaTests
         Near(model.Rows[0].Critical.Value.Mean, 39, "basic critical mean");
         Near(model.Rows[0].ExpectedRaw.Value, 16.0875, "raw expected value");
         Near(model.Rows[0].MeanOnHit.Value, 21.45, "conditional hit mean includes criticals, not misses");
+        Check(AttackThreshold.Required(5, 20) == 15, "basic AB5 AC20 requires fifteen");
+        Check(AttackThreshold.Required(9, 17) == 8, "observed AB9 AC17 requires eight and matches screenshot 65 percent");
+        Check(AttackThreshold.Required(100, 1) == 2, "natural one still misses despite huge bonus");
+        Check(AttackThreshold.Required(-100, 100) == 20 && AttackThreshold.Describe(-100, 100).Contains("자연 20"), "unreachable arithmetic threshold still allows natural twenty");
+        Check(AttackThreshold.Required(int.MaxValue, int.MinValue) == 2 && AttackThreshold.Required(int.MinValue, int.MaxValue) == 20, "threshold arithmetic avoids overflow");
+        var hold = new PanelRetention();
+        hold.Hover("rider", "turn1", "enemy", 100);
+        Check(hold.Keep("rider", "turn1", "enemy", true, false, 1000), "cursor can travel from enemy to panel during grace");
+        Check(hold.Keep("rider", "turn1", "enemy", true, true, 5000), "pointer over panel retains target to click details");
+        Check(!hold.Keep("rider", "turn1", "enemy", true, false, 1401), "unfocused unpinned panel expires");
+        hold.TogglePin(); Check(hold.Keep("rider", "turn1", "enemy", true, false, 5000), "pinned panel can be inspected without hovering enemy");
+        Check(!hold.Keep("rider", "turn2", "enemy", true, true, 5000), "pin cannot survive turn transition");
+        Check(!hold.Keep("other", "turn1", "enemy", true, true, 5000), "pin cannot survive attacker transition");
+        Check(!hold.Keep("rider", "turn1", "enemy", false, true, 5000), "dead/missing target invalidates pin");
+        hold.Hover("rider", "turn1", "other-enemy", 5000); Check(!hold.Pinned, "changing hovered target releases old pin");
+        hold.Clear(); Check(!hold.Keep("rider", "turn1", "other-enemy", true, true, 5000), "scene/ability/disable clears retained target");
+        var completed = new CompletedRuleCache();
+        completed.Put("rider-target-weapon-state", 9, 100);
+        Check(completed.Read("rider-target-weapon-state", 101) == 9, "completed rule result is copied without adding bonuses twice");
+        Check(!completed.Read("rider-target-other-weapon-state", 101).HasValue, "rule results never cross weapons");
+        Check(!completed.Read("rider-target-weapon-state", 99).HasValue && !completed.Read("rider-target-weapon-state", 1601).HasValue, "completed rule clock/age invalidation");
+        completed.Clear(); Check(!completed.Read("rider-target-weapon-state", 101).HasValue, "completed results clear on invalidation");
+        var mountInput = new BetaInput("mount", "target", "bite", "turn", "mount-state", 16, 5, 20, 1, 6, 3, 20, 2, true, true, false, naturalWeapon: true);
+        var mountModel = BetaModel.Build(mountInput, "mount-shown");
+        Check(mountModel.Rows.Count == 1, "natural bite does not invent BAB iteratives");
+        Near(PanelPresentation.TotalRaw(new[] { model, mountModel }).Value, model.Rows.Sum(r => r.ExpectedRaw.Value) + mountModel.Rows[0].ExpectedRaw.Value,
+            "mounted total includes rider and mount rows");
+        Check(!PanelPresentation.TotalRaw(new BetaSnapshot[] { model, null }).HasValue, "missing mount data makes combined total unknown rather than omitting mount");
+        var mountedTracker = new BetaTracker();
+        mountedTracker.Shown(model, 0); mountedTracker.Shown(mountModel, 0);
+        mountedTracker.Begin("rider-attack", input, 0, true, 1);
+        mountedTracker.Begin("mount-attack", mountInput, 1, true, 1, "bite");
+        Check(mountedTracker.Finish("rider-attack", "actor", "target", "sword", true, 22, 28, 1, 8, 15, 2, 1).Preview.Id == model.Id,
+            "mount display never overwrites rider association");
+        var mountComparison = mountedTracker.Finish("mount-attack", "mount", "target", "bite", true, 5, 20, 1, 6, 3, 2, 1);
+        Check(mountComparison.Preview.Id == mountModel.Id && !mountComparison.HasDifference,
+            "natural attack with a global nonzero attack index associates to its own weapon row");
+        var hoofInput = new BetaInput("mount", "target", "hoof-left", "turn", "hoof-state", 16, 0, 20, 1, 4, 1, 20, 2, true, true, false, naturalWeapon: true);
+        var hoof = BetaModel.Build(hoofInput, "hoof-shown"); mountedTracker.Shown(hoof, 0);
+        mountedTracker.Begin("hoof-attack", hoofInput, 2, true, 1, "hoof-left");
+        Check(mountedTracker.Finish("hoof-attack", "mount", "target", "hoof-left", true, 0, 20, 1, 4, 1, 2, 1).Preview.Id == hoof.Id,
+            "same mount's different limb uses its own weapon identity and global index");
         var terms = new List<DamageComponentSnapshot> {
             new DamageComponentSnapshot(new DamageTerm(1, 8, 4, true) { Kind = DamageKind.Physical }, false, null),
             new DamageComponentSnapshot(new DamageTerm(1, 6, 0, false) { Kind = DamageKind.Fire }, false, null)
@@ -137,6 +179,7 @@ static class BetaTests
             Check(!doc.RootElement.GetProperty("fullConditionsVerified").GetBoolean() && !doc.RootElement.GetProperty("afterDefenseAvailable").GetBoolean(),
                 "neither complete conditions nor actual mitigation is certified");
             Check(doc.RootElement.GetProperty("rows").GetArrayLength() == 4, "exact displayed basic rows persisted");
+            Check(doc.RootElement.GetProperty("rows")[0].GetProperty("requiredD20").GetInt32() == 6, "displayed d20 requirement logged");
         }
         using (var doc = JsonDocument.Parse(lines[2]))
             Check(doc.RootElement.GetProperty("rollEventId").GetString() == "roll-1" && doc.RootElement.GetProperty("differentFields").GetArrayLength() == 0,

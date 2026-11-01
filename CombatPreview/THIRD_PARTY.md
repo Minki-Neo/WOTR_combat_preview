@@ -56,3 +56,8 @@ The legacy replay code remains dormant and blocked; the beta does not restore/re
 estimate scalar cache and layout/conditional-mean/component-comparison tests are
 original MIT contributions. No game or other mod artwork/font files were extracted
 or redistributed. The panel uses the already-loaded GUI font at runtime.
+
+0.3.2: PreviewInteraction.cs and PassiveRuleResults.cs, retained UI input blocker,
+mount/natural-slot graph reader and per-actor/weapon comparison changes are original
+MIT additions. Game IL was inspected locally; no decompiled source or reference DLL
+is included. Observer postfixes use the game's existing Harmony dependency.

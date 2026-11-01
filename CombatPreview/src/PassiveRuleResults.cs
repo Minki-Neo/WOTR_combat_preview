@@ -1,0 +1,43 @@
+using System;
+using HarmonyLib;
+using Kingmaker.RuleSystem.Rules;
+
+namespace CombatPreview
+{
+    // Two explicit POSTFIX observers. No PatchAll, prefixes, skipped originals,
+    // changed args/results, rule constructors, handlers, or RNG calls.
+    internal static class PassiveRuleResults
+    {
+        const string Owner = "CombatPreview.PassiveRuleResults";
+        static Harmony harmony;
+        static bool faulted;
+        internal static bool Installed { get { return harmony != null && !faulted; } }
+        internal static void Install()
+        {
+            if (harmony != null || !Compatibility.CanPreview) return;
+            var instance = new Harmony(Owner);
+            try
+            {
+                instance.Patch(AccessTools.Method(typeof(RuleCalculateAttackBonus), "OnTrigger"),
+                    postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterAB)) { priority = Priority.Last });
+                instance.Patch(AccessTools.Method(typeof(RuleCalculateAC), "OnTrigger"),
+                    postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterAC)) { priority = Priority.Last });
+                harmony = instance; faulted = false;
+            }
+            catch { instance.UnpatchAll(Owner); throw; }
+        }
+        internal static void Remove()
+        { if (harmony != null) harmony.UnpatchAll(Owner); harmony = null; }
+        static void AfterAB(RuleCalculateAttackBonus __instance)
+        { Read(() => BetaRuntime.ObserveABResult(__instance)); }
+        static void AfterAC(RuleCalculateAC __instance)
+        { Read(() => BetaRuntime.ObserveACResult(__instance)); }
+        static void Read(Action read)
+        {
+            if (faulted) return;
+            try { read(); }
+            catch (NotSupportedException) { }
+            catch (Exception e) { faulted = true; Main.Error("Completed rule observer stopped", e); }
+        }
+    }
+}

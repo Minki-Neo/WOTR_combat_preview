@@ -12,10 +12,11 @@ namespace CombatPreview
         public readonly bool FullAttack, DamageKnown, DefensePartPresent;
         public readonly string Source;
         public readonly IReadOnlyList<DamageComponentSnapshot> Components;
+        public readonly bool NaturalWeapon;
         public BetaInput(string actor, string target, string weapon, string turn, string signature,
             int bab, int ab, int ac, int rolls, int sides, int bonus, int edge, int multiplier,
             bool fullAttack, bool damageKnown, bool defensePartPresent,
-            IEnumerable<DamageComponentSnapshot> components = null, string source = "cached-stats/basic-primary-weapon")
+            IEnumerable<DamageComponentSnapshot> components = null, string source = "cached-stats/basic-primary-weapon", bool naturalWeapon = false)
         {
             if (new[] { actor, target, weapon, turn, signature }.Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("Missing beta identity");
             if (bab < 0 || bab > 100 || edge < 2 || edge > 20 || multiplier < 1 || multiplier > 10
@@ -25,6 +26,7 @@ namespace CombatPreview
             CriticalEdge = edge; Multiplier = multiplier; FullAttack = fullAttack; DamageKnown = damageKnown;
             DefensePartPresent = defensePartPresent;
             Source = source;
+            NaturalWeapon = naturalWeapon;
             var copy = (components ?? new[] { new DamageComponentSnapshot(new DamageTerm(rolls, sides, bonus, true)
                 { Kind = DamageKind.Physical }, false, null) }).ToArray();
             if (copy.Length == 0 || copy.Length > 32 || copy.Any(c => c == null)) throw new ArgumentException("Invalid damage components");
@@ -55,8 +57,8 @@ namespace CombatPreview
         {
             Id = id; Input = input; Rows = Array.AsReadOnly(rows.ToArray());
             Notes = Array.AsReadOnly(new[] {
-                "기본 주무기/기본 반복 공격의 부분 추정입니다. 실제 전체 공격 수·순서는 미확정입니다.",
-                "가속·연타·보조손·자연/탈것 공격은 합산하지 않습니다.",
+                "제조 무기는 기본 BAB 반복, 자연 무기는 기존 무기 슬롯별 1회 모델입니다. 실제 전체 순서·횟수는 미확정입니다.",
+                "기승 시 기수와 탈것을 나누어 표시합니다. 가속·연타·보조손 등 추가 타격은 미확인입니다.",
                 input.Source.StartsWith("observed-")
                     ? "최근 게임 추정의 AB/AC/피해 구성 사본입니다. 첫 공격을 기본 반복 모델에 적용하며 완전한 조건 일치는 미확정입니다."
                     : "무기 강화·특기·명중/피해 능력치 치환·조건부 발동 효과는 미반영입니다.",
@@ -78,7 +80,7 @@ namespace CombatPreview
         {
             if (input == null || string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Missing beta model input");
             var rows = new List<BetaRow>();
-            int count = input.FullAttack ? Math.Min(4, 1 + Math.Max(0, input.BAB - 1) / 5) : 1;
+            int count = input.FullAttack && !input.NaturalWeapon ? Math.Min(4, 1 + Math.Max(0, input.BAB - 1) / 5) : 1;
             for (int i = 0; i < count; i++)
             {
                 var row = new BetaRow { Index = i, Penalty = i * 5, AB = input.AttackBonus - i * 5, AC = input.AC };
@@ -124,25 +126,34 @@ namespace CombatPreview
     public sealed class BetaTracker
     {
         sealed class Pending { internal BetaSnapshot Preview; internal BetaRow Row; internal BetaComparisonStatus Status; internal long Time; }
-        BetaSnapshot shown;
-        long shownAt;
+        sealed class Displayed { internal BetaSnapshot Preview; internal long Time; }
+        readonly Dictionary<string, Displayed> shown = new Dictionary<string, Displayed>();
         readonly Dictionary<string, Pending> pending = new Dictionary<string, Pending>();
-        public void Shown(BetaSnapshot snapshot, long now) { shown = snapshot; shownAt = now; }
-        public void Invalidate() { shown = null; pending.Clear(); }
+        static string Key(BetaInput input) { return input.Actor + "|" + input.Target + "|" + input.Weapon; }
+        public void Shown(BetaSnapshot snapshot, long now)
+        {
+            if (shown.Count >= 32 && !shown.ContainsKey(Key(snapshot.Input))) shown.Remove(shown.OrderBy(p => p.Value.Time).First().Key);
+            shown[Key(snapshot.Input)] = new Displayed { Preview = snapshot, Time = now };
+        }
+        public void Invalidate() { shown.Clear(); pending.Clear(); }
         public bool HasPair(string actor, string target)
-        { return shown != null && shown.Input.Actor == actor && shown.Input.Target == target; }
+        { return shown.Values.Any(v => v.Preview.Input.Actor == actor && v.Preview.Input.Target == target); }
         public void Begin(string eventId, BetaInput current, int index, bool fullAttack, long now, string actualWeapon = null)
         {
             foreach (var key in pending.Where(p => now < p.Value.Time || now - p.Value.Time > 10000).Select(p => p.Key).ToArray()) pending.Remove(key);
-            if (shown == null || current == null || !HasPair(current.Actor, current.Target) || string.IsNullOrEmpty(eventId)) return;
+            if (current == null || !HasPair(current.Actor, current.Target) || string.IsNullOrEmpty(eventId)) return;
+            Displayed displayed;
+            if (!shown.TryGetValue(Key(current), out displayed)) displayed = shown.Values.First(v => v.Preview.Input.Actor == current.Actor && v.Preview.Input.Target == current.Target);
+            var preview = displayed.Preview;
             if (pending.Count >= 32) pending.Remove(pending.OrderBy(p => p.Value.Time).First().Key);
-            var p = new Pending { Preview = shown, Time = now, Status = BetaComparisonStatus.ComparedPartialModel };
-            if (now < shownAt || now - shownAt > 2000) p.Status = BetaComparisonStatus.PreviewExpired;
-            else if (shown.Input.Weapon != current.Weapon || shown.Input.Weapon != (actualWeapon ?? current.Weapon) || shown.Input.Turn != current.Turn) p.Status = BetaComparisonStatus.PairChanged;
-            else if (shown.Input.FullAttack != fullAttack) p.Status = BetaComparisonStatus.AttackModeChanged;
-            else if (shown.Input.Signature != current.Signature) p.Status = BetaComparisonStatus.InputsChanged;
-            else if (index < 0 || index >= shown.Rows.Count) p.Status = BetaComparisonStatus.UnmodeledAttack;
-            else p.Row = shown.Rows[index];
+            var p = new Pending { Preview = preview, Time = now, Status = BetaComparisonStatus.ComparedPartialModel };
+            int rowIndex = current.NaturalWeapon && index >= 0 ? 0 : index;
+            if (now < displayed.Time || now - displayed.Time > 2000) p.Status = BetaComparisonStatus.PreviewExpired;
+            else if (preview.Input.Weapon != current.Weapon || preview.Input.Weapon != (actualWeapon ?? current.Weapon) || preview.Input.Turn != current.Turn) p.Status = BetaComparisonStatus.PairChanged;
+            else if (preview.Input.FullAttack != fullAttack) p.Status = BetaComparisonStatus.AttackModeChanged;
+            else if (preview.Input.Signature != current.Signature) p.Status = BetaComparisonStatus.InputsChanged;
+            else if (rowIndex < 0 || rowIndex >= preview.Rows.Count) p.Status = BetaComparisonStatus.UnmodeledAttack;
+            else p.Row = preview.Rows[rowIndex];
             pending[eventId] = p;
         }
         public void Cancel(string eventId) { if (eventId != null) pending.Remove(eventId); }
