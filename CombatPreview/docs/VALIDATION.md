@@ -1,6 +1,6 @@
 # Validation — diagnostic development history
 
-Latest: 0.3.0 beta cloud validation is recorded at the end. Earlier sections are historical results, including user-supplied 0.2.x runtime evidence.
+Latest: 0.3.1 beta UI cloud validation is recorded at the end. Earlier sections are historical results, including user-supplied 0.2.x runtime evidence.
 
 Date: 2026-11-01 (Asia/Seoul). This records commands actually executed in the cloud instance.
 No game executable, Unity asset data, user save or interactive game session was supplied/run.
@@ -141,3 +141,30 @@ Beta fixture generation and the analyzer were executed: one deliberate AB model 
 preview/roll references. Python packaging executed a successful full build and verified ZIP CRC and six-file
 allowlist; shell release publisher syntax passed bash -n. Distribution payload and source ZIP are checked
 separately for version, CRC, byte-identical built DLL and excluded proprietary/binary artifacts.
+
+## 0.3.1 UI and component update — 2026-11-01 Asia/Seoul
+
+C# pure tests: **6,699 original +138 contracts +281 beta =7,118 assertions passed**.
+Independent Python:509; project XML:2; WOTR syntax:29 C# files. New checks exercise conditional
+hit means including criticals (21.45 for the original example), nonmultiplying extra fire dice,
+line-separated formulas, basic full-attack sums, unknown totals, viewport placement, immutable copies,
+fresh/expired/changed-input observed-estimate reuse, cache clear/weapon refusal, all-component
+comparison/JSON, and explicitly manual DR expectations. 1d8+4 physical +1d6 fire at hit.75/crit.075
+has normal mean12, critical mean20.5, raw expectation9.6375, conditional mean12.85. Manual DR4
+changes only the labeled scenario expectation to6.6375 and conditional mean8.85, never actual defense availability.
+
+0.3.0 user evidence confirms 29 displayed models,10 comparison links,28 real weapon rolls and12 linked damage
+records; four comparable rows all differ in AB and one actual extra attack was outside the basic model.
+A screenshot confirms the old panel and HP text rendered. These are neither 0.3.1 tests nor proof of numerical
+accuracy/HP refresh/state preservation. See RUNTIME_LOG_REVIEW.ko.md for aggregate evidence.
+
+0.3.1 still needs in-game validation of action-bar bounds, Korean font/row wrapping, IMGUI lifecycle, dragging/
+scaling/migration, availability/ordering of game-created estimates, new component comparisons, and complete
+state/RNG equivalence. The game executable/UI session is not available in this cloud workspace. Static field
+inspection and compilation do not establish any of these. Actual DR/energy/pool mitigation and full advanced
+attack enumeration remain unavailable. PowerShell packaging/ModFinder application were not run on Linux.
+
+The final net472 build succeeded against supplied references with zero errors and the existing unused Charge
+warning. A sandboxed restore initially reported NU1900 (NuGet advisory endpoint unreachable); an escalated
+restore through the inherited proxy succeeded without disabling TLS/signatures/audit, and subsequent packaging
+completed without that advisory warning. Python packaging validates CRC and the exact six-file mod-only allowlist.

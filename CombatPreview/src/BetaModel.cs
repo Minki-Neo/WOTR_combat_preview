@@ -10,9 +10,12 @@ namespace CombatPreview
         public readonly string Actor, Target, Weapon, Turn, Signature;
         public readonly int BAB, AttackBonus, AC, Rolls, Sides, Bonus, CriticalEdge, Multiplier;
         public readonly bool FullAttack, DamageKnown, DefensePartPresent;
+        public readonly string Source;
+        public readonly IReadOnlyList<DamageComponentSnapshot> Components;
         public BetaInput(string actor, string target, string weapon, string turn, string signature,
             int bab, int ab, int ac, int rolls, int sides, int bonus, int edge, int multiplier,
-            bool fullAttack, bool damageKnown, bool defensePartPresent)
+            bool fullAttack, bool damageKnown, bool defensePartPresent,
+            IEnumerable<DamageComponentSnapshot> components = null, string source = "cached-stats/basic-primary-weapon")
         {
             if (new[] { actor, target, weapon, turn, signature }.Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("Missing beta identity");
             if (bab < 0 || bab > 100 || edge < 2 || edge > 20 || multiplier < 1 || multiplier > 10
@@ -21,6 +24,12 @@ namespace CombatPreview
             BAB = bab; AttackBonus = ab; AC = ac; Rolls = rolls; Sides = sides; Bonus = bonus;
             CriticalEdge = edge; Multiplier = multiplier; FullAttack = fullAttack; DamageKnown = damageKnown;
             DefensePartPresent = defensePartPresent;
+            Source = source;
+            var copy = (components ?? new[] { new DamageComponentSnapshot(new DamageTerm(rolls, sides, bonus, true)
+                { Kind = DamageKind.Physical }, false, null) }).ToArray();
+            if (copy.Length == 0 || copy.Length > 32 || copy.Any(c => c == null)) throw new ArgumentException("Invalid damage components");
+            Components = Array.AsReadOnly(copy);
+            DamageKnown = damageKnown && copy.All(c => c.Kind != DamageKind.Unknown && Enum.IsDefined(typeof(DamageKind), c.Kind));
         }
     }
     public sealed class BetaRow
@@ -34,6 +43,7 @@ namespace CombatPreview
         public DamageSummary? Normal { get; internal set; }
         public DamageSummary? Critical { get; internal set; }
         public double? ExpectedRaw { get; internal set; }
+        public double? MeanOnHit { get { return ExpectedRaw.HasValue && Hit > 0 ? ExpectedRaw.Value / Hit : (double?)null; } }
     }
     public sealed class BetaSnapshot
     {
@@ -47,10 +57,16 @@ namespace CombatPreview
             Notes = Array.AsReadOnly(new[] {
                 "기본 주무기/기본 반복 공격의 부분 추정입니다. 실제 전체 공격 수·순서는 미확정입니다.",
                 "가속·연타·보조손·자연/탈것 공격은 합산하지 않습니다.",
-                "무기 강화·특기·명중/피해 능력치 치환·조건부 발동 효과는 미반영입니다.",
-                "난이도 보정·강타 등 공격 시 적용되는 보정은 미반영입니다.",
-                "AC는 저장된 일반 AC입니다. 협공·은폐·무방비·재굴림·치명타 면역 등은 미반영입니다.",
-                "피해는 기본 크기 무기의 물리 모델입니다. DR·저항·면역·보호막 적용 후 피해는 계산하지 않습니다."
+                input.Source.StartsWith("observed-")
+                    ? "최근 게임 추정의 AB/AC/피해 구성 사본입니다. 첫 공격을 기본 반복 모델에 적용하며 완전한 조건 일치는 미확정입니다."
+                    : "무기 강화·특기·명중/피해 능력치 치환·조건부 발동 효과는 미반영입니다.",
+                input.Source.StartsWith("observed-")
+                    ? "추정 당시 일부 보정이 포함될 수 있지만 공격 시 조건부 효과·난이도 보정은 별도 검증되지 않았습니다."
+                    : "난이도 보정·강타 등 공격 시 적용되는 보정은 미반영입니다.",
+                input.Source.StartsWith("observed-")
+                    ? "AC는 관측된 추정 이벤트의 값입니다. 은폐·재굴림·치명타 면역 등 확률 수정은 미반영입니다."
+                    : "AC는 저장된 일반 AC입니다. 협공·은폐·무방비·재굴림·치명타 면역 등은 미반영입니다.",
+                "피해는 방어 전 모델입니다. DR·저항·면역·보호막 적용 후 피해는 계산하지 않습니다."
             });
         }
         public DiagnosticContext Context(int index = -1)
@@ -79,7 +95,7 @@ namespace CombatPreview
                 row.Hit = hits / 20.0; row.Crit = threats / 20.0 * confirms / 20.0;
                 if (input.DamageKnown)
                 {
-                    var terms = new[] { new DamageTerm(input.Rolls, input.Sides, input.Bonus, true) { Kind = DamageKind.Physical } };
+                    var terms = input.Components.Select(c => c.ToTerm()).ToArray();
                     row.Normal = DamageMath.Summarize(terms, 1);
                     row.Critical = DamageMath.Summarize(terms, input.Multiplier);
                     row.ExpectedRaw = DamageMath.Expected(row.Hit, row.Crit, row.Normal.Value.Mean, row.Critical.Value.Mean);
@@ -102,6 +118,7 @@ namespace CombatPreview
         public int? ActualBonus { get; internal set; }
         public IReadOnlyList<string> Differences { get; internal set; }
         public IReadOnlyList<string> ComparedFields { get; internal set; }
+        public IReadOnlyList<DamageComponentSnapshot> ActualComponents { get; internal set; }
         public bool HasDifference { get { return Status == BetaComparisonStatus.ComparedPartialModel && Differences.Count > 0; } }
     }
     public sealed class BetaTracker
@@ -130,13 +147,15 @@ namespace CombatPreview
         }
         public void Cancel(string eventId) { if (eventId != null) pending.Remove(eventId); }
         public BetaComparison Finish(string eventId, string actor, string target, string weapon, bool rolled,
-            int ab, int ac, int? rolls, int? sides, int? bonus, long now, int componentCount = -1)
+            int ab, int ac, int? rolls, int? sides, int? bonus, long now, int componentCount = -1,
+            IReadOnlyList<DamageComponentSnapshot> actualComponents = null)
         {
             Pending p;
             if (eventId == null || !pending.TryGetValue(eventId, out p)) return null;
             pending.Remove(eventId);
             var result = new BetaComparison { Preview = p.Preview, Row = p.Row, Status = p.Status,
                 ActualAB = ab, ActualAC = ac, ActualRolls = rolls, ActualSides = sides, ActualBonus = bonus,
+                ActualComponents = actualComponents == null ? null : Array.AsReadOnly(actualComponents.ToArray()),
                 Differences = Array.AsReadOnly(new string[0]), ComparedFields = Array.AsReadOnly(new string[0]) };
             if (now < p.Time || now - p.Time > 10000) result.Status = BetaComparisonStatus.PreviewExpired;
             if (result.Status != BetaComparisonStatus.ComparedPartialModel) return result;
@@ -154,7 +173,16 @@ namespace CombatPreview
                 if (bonus.HasValue)
                 { compared.Add("WeaponBonus"); if (bonus != p.Preview.Input.Bonus) differences.Add("WeaponBonus"); }
                 if (componentCount >= 0)
-                { compared.Add("DamageComponents"); if (componentCount != 1) differences.Add("DamageComponents"); }
+                { compared.Add("DamageComponents"); if (componentCount != p.Preview.Input.Components.Count) differences.Add("DamageComponents"); }
+                if (actualComponents != null)
+                    for (int i = 0; i < Math.Min(actualComponents.Count, p.Preview.Input.Components.Count); i++)
+                    {
+                        var actual = actualComponents[i]; var predicted = p.Preview.Input.Components[i];
+                        string name = "Damage[" + (i + 1) + "]";
+                        compared.Add(name);
+                        if (actual.Kind != predicted.Kind || actual.Rolls != predicted.Rolls || actual.Sides != predicted.Sides || actual.Bonus != predicted.Bonus)
+                            differences.Add(name);
+                    }
             }
             result.Differences = Array.AsReadOnly(differences.ToArray());
             result.ComparedFields = Array.AsReadOnly(compared.ToArray());

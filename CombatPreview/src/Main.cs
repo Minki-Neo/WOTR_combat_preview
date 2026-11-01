@@ -18,7 +18,11 @@ namespace CombatPreview
         // The hit chance of the selected character under the enemy the pointer is on.
         public bool ShowOnHover = false;
         public bool Detailed = true;
-        public float X = 30, Y = 160, Scale = 1, Width = 540;
+        public bool PanelDetails;
+        public float X = 30, Y = 160, Scale = 1, Width = 820;
+        public bool AnchorAboveActionBar = true;
+        public bool UseObservedPreview = true;
+        public int PanelLayoutVersion;
         internal bool Enabled;
         public bool ManualScenario;
         public int ScenarioDR, ScenarioFire, ScenarioCold, ScenarioElectricity, ScenarioAcid, ScenarioSonic;
@@ -52,6 +56,13 @@ namespace CombatPreview
         {
             Log = modEntry.Logger;
             Settings = UnityModManager.ModSettings.Load<Settings>(modEntry);
+            if (Settings.PanelLayoutVersion < 1)
+            {
+                Settings.AnchorAboveActionBar = true;
+                if (Settings.Width < 620) Settings.Width = 820;
+                Settings.PanelDetails = false;
+                Settings.PanelLayoutVersion = 1;
+            }
             Settings.Enabled = false;
             Settings.ScenarioConfirmed = false;
             modEntry.OnToggle = (e, enabled) =>
@@ -110,17 +121,20 @@ namespace CombatPreview
             if (show != Settings.ShowOnHover) { Settings.ShowOnHover = show && Compatibility.CanPreview; HoverChance.Invalidate(); }
             Settings.CompareBeta = GUILayout.Toggle(Settings.CompareBeta, "표시 모델과 실제 AB/AC/무기 구성의 차이를 로컬 로그에 기록");
             Settings.BetaAlerts = GUILayout.Toggle(Settings.BetaAlerts, "모델 차이 알림 표시 (미반영 효과일 수 있음; 팝업으로 전투를 막지 않음)");
+            bool observed = GUILayout.Toggle(Settings.UseObservedPreview, "게임이 이미 계산한 최근 미리보기의 AB/AC/피해 구성을 읽기 (추가 규칙 실행 없음)");
+            if (observed != Settings.UseObservedPreview) { Settings.UseObservedPreview = observed; HoverChance.Invalidate(); }
+            Settings.AnchorAboveActionBar = GUILayout.Toggle(Settings.AnchorAboveActionBar, "하단 행동 막대 위 중앙에 자동 배치");
             GUILayout.Label("기본 반복 순서만 계산합니다. 가속/연타/보조손/탈것 추가 공격과 DR·저항·보호막 적용 피해는 미지원입니다.");
             bool localDiagnostics = GUILayout.Toggle(Settings.LocalDiagnostics, "Local passive attack diagnostics (no extra rules/dice; max 2 MiB)");
             if (localDiagnostics != Settings.LocalDiagnostics) { Settings.LocalDiagnostics = localDiagnostics; Diagnostics?.Reset(); }
             GUILayout.Label("베타 차이 기록: " + BetaRuntime.DifferenceCount + " | 기대 피해와 한 번의 무작위 피해는 불일치로 판정하지 않습니다.");
-            if (Settings.LocalDiagnostics && Diagnostics != null) GUILayout.Label(Diagnostics.Status);
-            Settings.Detailed = GUILayout.Toggle(Settings.Detailed, "Detailed attack rows");
+            if ((Settings.LocalDiagnostics || Settings.ShowOnHover && Settings.CompareBeta) && Diagnostics != null) GUILayout.Label(Diagnostics.Status);
+            Settings.PanelDetails = GUILayout.Toggle(Settings.PanelDetails, "미리보기 상세 계산 표시");
             GUILayout.Label("Panel scale");
             Settings.Scale = GUILayout.HorizontalSlider(Settings.Scale, 0.7f, 1.6f);
             GUILayout.Label("Panel width");
-            Settings.Width = GUILayout.HorizontalSlider(Settings.Width, 420, 850);
-            if (GUILayout.Button("Reset panel position")) { Settings.X = 30; Settings.Y = 160; }
+            Settings.Width = GUILayout.HorizontalSlider(Settings.Width, 620, 1100);
+            if (GUILayout.Button("패널 위치 초기화 (행동 막대 위 중앙)")) { Settings.AnchorAboveActionBar = true; Settings.Width = 820; Settings.Scale = 1; }
             GUILayout.Label("자동 방어 적용 피해는 계산 불가입니다. 수동 시나리오는 실제 대상 방어가 아닙니다.");
             Settings.ManualScenario = GUILayout.Toggle(Settings.ManualScenario, "수동 물리 방어 시나리오 (실제 대상 방어 아님)");
             if (Settings.ManualScenario)

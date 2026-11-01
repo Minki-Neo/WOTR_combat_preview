@@ -81,6 +81,6 @@ namespace CombatPreview
         internal static void Invalidate()
         { if (instance != null) { instance.Hide(); instance.hovered = null; } BetaRuntime.Invalidate(); }
         void OnDestroy()
-        { EventBus.Unsubscribe(this); BetaRuntime.Invalidate(); if (instance == this) instance = null; }
+        { DisposePanel(); EventBus.Unsubscribe(this); BetaRuntime.Invalidate(); if (instance == this) instance = null; }
     }
 }

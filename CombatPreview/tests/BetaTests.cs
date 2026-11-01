@@ -30,6 +30,45 @@ static class BetaTests
         Near(model.Rows[0].Normal.Value.Mean, 19.5, "basic normal weapon mean");
         Near(model.Rows[0].Critical.Value.Mean, 39, "basic critical mean");
         Near(model.Rows[0].ExpectedRaw.Value, 16.0875, "raw expected value");
+        Near(model.Rows[0].MeanOnHit.Value, 21.45, "conditional hit mean includes criticals, not misses");
+        var terms = new List<DamageComponentSnapshot> {
+            new DamageComponentSnapshot(new DamageTerm(1, 8, 4, true) { Kind = DamageKind.Physical }, false, null),
+            new DamageComponentSnapshot(new DamageTerm(1, 6, 0, false) { Kind = DamageKind.Fire }, false, null)
+        };
+        var multiInput = new BetaInput("actor", "target", "sword", "turn", "multi", 16, 22, 28, 1, 8, 4, 19, 2,
+            true, true, false, terms, "observed-existing-estimate/basic-primary-iteratives");
+        var multi = BetaModel.Build(multiInput, "multi");
+        Near(multi.Rows[0].Normal.Value.Mean, 12, "multiple dice normal hit mean");
+        Near(multi.Rows[0].Critical.Value.Mean, 20.5, "extra fire dice do not multiply on critical");
+        Near(multi.Rows[0].ExpectedRaw.Value, 9.6375, "multi-component expectation accounts for hit and criticals");
+        Near(multi.Rows[0].MeanOnHit.Value, 12.85, "multi-component conditional mean");
+        Check(PanelPresentation.DiceLines(multiInput) == "1D8+4 +\n1D6 (화염)", "damage components on distinct lines with join marker");
+        terms.Clear(); Check(multiInput.Components.Count == 2, "input copies mutable component list");
+        Near(PanelPresentation.TotalRaw(multi).Value, multi.Rows.Sum(r => r.ExpectedRaw.Value), "full basic attack sum includes every displayed row");
+        Check(!PanelPresentation.TotalRaw(BetaModel.Build(Input(damage: false), "no-damage")).HasValue, "unknown total never becomes zero");
+        float px, py;
+        PanelPresentation.Place(2560, 1440, 820, 264, 1068, out px, out py);
+        Check(px == 870 && py == 792, "screenshot-sized layout centers immediately above action bar");
+        foreach (var size in new[] { new[] { 1280f, 720f }, new[] { 1920f, 1080f }, new[] { 3440f, 1440f } })
+        {
+            float width = Math.Min(820, size[0] - 12), height = size[1] * .65f, top = size[1] * .74f;
+            PanelPresentation.Place(size[0], size[1], width, height, top, out px, out py);
+            Check(px >= 0 && py >= 0 && px + width <= size[0] && py + height < top, "anchored panel fits common viewport");
+        }
+        var native = new ObservedPreviewCache();
+        Check(ReferenceEquals(native.Read(input, 0), input), "no observed estimate uses basic model");
+        native.Store(input, multiInput, 100);
+        Check(ReferenceEquals(native.Read(input, 100), multiInput), "fresh matching game-created estimate used without replay");
+        Check(ReferenceEquals(native.Read(input, 2101), input), "expired estimate cannot contaminate current preview");
+        Check(ReferenceEquals(native.Read(input, 99), input), "observed estimate rejects clock regression");
+        Check(native.Read(Input("changed"), 101).Signature == "changed", "changed state invalidates copied game estimate");
+        Check(native.Read(Input(turn: "new-turn"), 101).Turn == "new-turn", "other turn cannot reuse estimate");
+        Check(native.Read(Input(weapon: "other"), 101).Weapon == "other", "other weapon cannot reuse estimate");
+        native.Clear(); Check(ReferenceEquals(native.Read(input, 101), input), "toggle/scene clears native estimate");
+        bool rejected = false;
+        try { native.Store(Input(weapon: "other"), multiInput, 100); }
+        catch (ArgumentException) { rejected = true; }
+        Check(rejected, "cache refuses an observed estimate from another weapon");
         Check(!model.Context().Complete, "beta never certifies complete game conditions");
         Check(BetaModel.Build(Input(full: false), "single").Rows.Count == 1, "single attack remains single");
         Check(!BetaModel.Build(Input(damage: false), "unknown").Rows[0].ExpectedRaw.HasValue, "unknown damage is unavailable, not zero");
@@ -103,6 +142,36 @@ static class BetaTests
             Check(doc.RootElement.GetProperty("rollEventId").GetString() == "roll-1" && doc.RootElement.GetProperty("differentFields").GetArrayLength() == 0,
                 "traceable partial-model comparison");
         foreach (var line in lines) using (JsonDocument.Parse(line)) { }
+        tracker.Shown(multi, 0); tracker.Begin("multi-attack", multiInput, 0, true, 1);
+        var actualParts = new[] {
+            multiInput.Components[0],
+            new DamageComponentSnapshot(new DamageTerm(2, 6, 0, false) { Kind = DamageKind.Fire }, false, null)
+        };
+        var extraDifference = tracker.Finish("multi-attack", "actor", "target", "sword", true, 22, 28, 1, 8, 4, 2, 2, actualParts);
+        Check(extraDifference.Differences.SequenceEqual(new[] { "Damage[2]" }), "extra damage component dice compared independently");
+        recorder.RecordBetaPreview(multi);
+        recorder.RecordBetaComparison(extraDifference, multi.Context(), "multi-roll");
+        using (var doc = JsonDocument.Parse(lines[lines.Count - 2]))
+        {
+            Check(doc.RootElement.GetProperty("basis").GetString().StartsWith("observed-"), "copied estimate source explicit in log");
+            Check(doc.RootElement.GetProperty("damageComponents").GetArrayLength() == 2, "all displayed dice logged");
+            Near(doc.RootElement.GetProperty("rows")[0].GetProperty("meanOnHitRaw").GetDouble(), 12.85, "displayed conditional mean logged");
+        }
+        using (var doc = JsonDocument.Parse(lines.Last()))
+            Check(doc.RootElement.GetProperty("actualDamageComponents")[1].GetProperty("rolls").GetInt32() == 2,
+                "all actual component dice logged for review");
+        var manualDefense = new DefenseProfile { Complete = true, Source = "MANUAL SCENARIO" };
+        manualDefense.Reduction[DamageKind.Physical] = 4;
+        recorder.RecordBetaPreview(multi, manualDefense);
+        using (var doc = JsonDocument.Parse(lines.Last()))
+        {
+            var row = doc.RootElement.GetProperty("rows")[0];
+            Near(row.GetProperty("expectedRaw").GetDouble(), 9.6375, "manual DR preserves original raw expectation in log");
+            Near(row.GetProperty("expectedManualScenario").GetDouble(), 6.6375, "manual DR expectation logged separately");
+            Near(row.GetProperty("meanOnHitManualScenario").GetDouble(), 8.85, "conditional mean includes manual DR when explicitly selected");
+            Check(doc.RootElement.GetProperty("manualScenario").GetBoolean() && !doc.RootElement.GetProperty("afterDefenseAvailable").GetBoolean(),
+                "manual defense never certifies actual target defense");
+        }
         Console.WriteLine("PASS: " + assertions + " read-only beta math/association/logging assertions (not in-game UI validation)");
     }
     public static void WriteExample(string path)

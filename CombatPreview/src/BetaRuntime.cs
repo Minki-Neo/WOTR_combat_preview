@@ -126,6 +126,8 @@ namespace CombatPreview
     {
         static readonly Stopwatch clock = Stopwatch.StartNew();
         static readonly BetaTracker tracker = new BetaTracker();
+        static readonly ObservedPreviewCache observed = new ObservedPreviewCache();
+        static bool observedFaulted;
         static BetaSnapshot built;
         static long sequence;
         static int mainThread;
@@ -136,10 +138,56 @@ namespace CombatPreview
         internal static void Initialize() { mainThread = Thread.CurrentThread.ManagedThreadId; }
         internal static BetaSnapshot Capture(UnitEntityData actor, UnitEntityData target, bool full)
         {
-            var input = BetaReader.Capture(actor, target, full);
+            var input = CaptureInput(actor, target, full);
             if (built == null || built.Input.Signature != input.Signature)
                 built = BetaModel.Build(input, "beta-" + (++sequence).ToString(CultureInfo.InvariantCulture));
             return built;
+        }
+        static BetaInput CaptureInput(UnitEntityData actor, UnitEntityData target, bool full)
+        {
+            var input = BetaReader.Capture(actor, target, full);
+            return Main.Settings.UseObservedPreview && !observedFaulted ? observed.Read(input, clock.ElapsedMilliseconds) : input;
+        }
+        internal static void ObserveGameEstimate(RuleAttackRoll evt)
+        {
+            if (!Enabled || !Main.Settings.UseObservedPreview || observedFaulted || evt == null
+                || Thread.CurrentThread.ManagedThreadId != mainThread) return;
+            try
+            {
+                if (!evt.IsFake || evt.AttackBonusPenalty != 0 || evt.Initiator == null || evt.Target == null
+                    || evt.Initiator != TurnBased.Controllers.CombatController.SelectedUnit
+                    || evt.Weapon == null || evt.Weapon != BetaReader.Primary(evt.Initiator)) return;
+                var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+                if (turn == null) return;
+                var input = BetaReader.Capture(evt.Initiator, evt.Target, turn.GetEnabledFullAttack(evt.Initiator));
+                var descriptions = evt.WeaponStats?.DamageDescription;
+                if (descriptions == null || descriptions.Count == 0 || descriptions.Count > 32) return;
+                var parts = new List<DamageComponentSnapshot>();
+                bool known = true;
+                foreach (var d in descriptions)
+                {
+                    if (d == null || d.EvaluatedBonus != null) return; // Never execute an evaluator.
+                    var dice = d.ModifiedDiceFormula;
+                    var kind = DefenseReader.Classify(d.TypeDescription);
+                    known &= kind != DamageKind.Unknown;
+                    parts.Add(new DamageComponentSnapshot(new DamageTerm(dice.Rolls,
+                        dice.Rolls == 0 ? 1 : dice.Dice.Sides(), d.Bonus, parts.Count == 0) { Kind = kind }, false, null));
+                }
+                var first = parts[0];
+                string signature = input.Signature + "|observed:" + evt.AttackBonus + ":" + evt.TargetAC + ":"
+                    + string.Join(";", parts.Select(p => p.Kind + ":" + p.Rolls + ":" + p.Sides + ":" + p.Bonus).ToArray());
+                var copy = new BetaInput(input.Actor, input.Target, input.Weapon, input.Turn, signature,
+                    input.BAB, evt.AttackBonus, evt.TargetAC, first.Rolls, first.Sides, first.Bonus,
+                    input.CriticalEdge, input.Multiplier, input.FullAttack, known, input.DefensePartPresent,
+                    parts, "observed-existing-estimate/basic-primary-iteratives");
+                observed.Store(input, copy, clock.ElapsedMilliseconds);
+            }
+            catch (NotSupportedException) { return; }
+            catch (Exception e)
+            {
+                observed.Clear(); observedFaulted = true;
+                Main.Error("Observed game estimate unavailable; using basic model", e);
+            }
         }
         internal static void Shown(BetaSnapshot snapshot)
         {
@@ -147,7 +195,7 @@ namespace CombatPreview
             tracker.Shown(snapshot, clock.ElapsedMilliseconds);
             Main.Diagnostics?.PreviewShown(snapshot);
         }
-        internal static void Invalidate() { tracker.Invalidate(); built = null; }
+        internal static void Invalidate() { tracker.Invalidate(); observed.Clear(); built = null; }
         internal static bool AlertVisible { get { return Enabled && Main.Settings.BetaAlerts && clock.ElapsedMilliseconds < alertUntil; } }
         internal static void Before(RuleAttackWithWeapon evt)
         {
@@ -155,7 +203,7 @@ namespace CombatPreview
             if (!tracker.HasPair(BetaIdentity.Id(evt.Initiator), BetaIdentity.Id(evt.Target))) return;
             try
             {
-                var input = BetaReader.Capture(evt.Initiator, evt.Target, evt.IsFullAttack);
+                var input = CaptureInput(evt.Initiator, evt.Target, evt.IsFullAttack);
                 tracker.Begin(BetaIdentity.Id(evt), input, evt.AttackNumber, evt.IsFullAttack, clock.ElapsedMilliseconds, BetaIdentity.Id(evt.Weapon));
             }
             catch (Exception e) { Main.Error("Beta comparison input capture", e); tracker.Cancel(BetaIdentity.Id(evt)); }
@@ -164,6 +212,12 @@ namespace CombatPreview
         {
             if (!Enabled || !Main.Settings.CompareBeta || Thread.CurrentThread.ManagedThreadId != mainThread || evt?.RuleAttackWithWeapon == null || evt.IsFake) return null;
             var damage = evt.WeaponStats?.DamageDescription;
+            var components = damage == null || damage.Count > 32 || damage.Any(d => d == null || d.EvaluatedBonus != null)
+                ? null : damage.Select((d, i) => {
+                    var formula = d.ModifiedDiceFormula;
+                    return new DamageComponentSnapshot(new DamageTerm(formula.Rolls, formula.Rolls == 0 ? 1 : formula.Dice.Sides(),
+                        d.Bonus, i == 0) { Kind = DefenseReader.Classify(d.TypeDescription) }, false, null);
+                }).ToArray();
             int? rolls = null, sides = null, bonus = null;
             if (damage != null && damage.Count > 0)
             {
@@ -172,7 +226,7 @@ namespace CombatPreview
             }
             var result = tracker.Finish(BetaIdentity.Id(evt.RuleAttackWithWeapon), BetaIdentity.Id(evt.Initiator), BetaIdentity.Id(evt.Target),
                 BetaIdentity.Id(evt.Weapon), GameRules.Die(evt) > 0, evt.AttackBonus, evt.TargetAC, rolls, sides, bonus,
-                clock.ElapsedMilliseconds, damage == null ? -1 : damage.Count);
+                clock.ElapsedMilliseconds, damage == null ? -1 : damage.Count, components);
             if (result != null && result.HasDifference)
             {
                 DifferenceCount++;

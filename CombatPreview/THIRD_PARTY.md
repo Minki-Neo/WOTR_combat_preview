@@ -51,3 +51,8 @@ PreviewPanel.cs and read-only HoverChance.cs, beta comparison diagnostics and pa
 These additions use MIT terms and preserve upstream notices. Local DLL metadata/IL
 inspection informed API/field choices; no decompiled game source or reference DLL is redistributed.
 The legacy replay code remains dormant and blocked; the beta does not restore/replay game events.
+
+0.3.1: PanelPresentation.cs, original procedural UI gradients/frame, observed game
+estimate scalar cache and layout/conditional-mean/component-comparison tests are
+original MIT contributions. No game or other mod artwork/font files were extracted
+or redistributed. The panel uses the already-loaded GUI font at runtime.

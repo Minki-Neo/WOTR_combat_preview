@@ -100,3 +100,25 @@ Actual DR/resistance/pool mitigation remains unavailable. Local logs and optiona
 Pure tests, syntax parsing and net472 compilation passed; these do not execute Unity lifecycle, render the UI,
 verify callback ordering in the live mod configuration, or prove complete state/RNG preservation.
 The actual 0.3.0 opt-in UI, HP refresh, comparison association, transitions and noninterference remain unrun in game.
+
+## 0.3.1 UI and observed estimate copies
+
+PanelPresentation is pure formatting/placement arithmetic. Active PredictionPanelPCView/ActionBarPCView
+RectTransform world corners and Canvas camera determine placement; no native UI objects or transforms are
+modified. A screen-relative anchor is the fallback. Original procedural textures/styles are owned by the mod,
+with GUI matrix/color restored after drawing and texture cleanup on destruction. No game/third-party art is bundled.
+
+An optional passive copy reads an already completed externally created IsFake RuleAttackRoll (game or another mod) for the selected primary
+weapon, zero attack penalty and current turn. It never constructs/triggers/replays the event or calls CreateDamage.
+The completed rule's cached AB/AC and DamageDescription scalars are copied. ModifiedDiceFormula reads the last
+stored formula modification; IL inspection found no evaluator/state update there. EvaluatedBonus is refused rather
+than executed. DamageDescription.Bonus already contains its stored modifiers (CreateDamage subtracts their total
+before reapplying them; inspected only, never invoked). First component uses base critical scaling; further components
+are modeled nonmultiplying. Critical overrides, extra attacks, concealment and true mitigation remain unverified.
+
+The copied estimate has no game-object references. Reuse requires matching known-input fingerprint, actor/target/
+weapon/turn/mode and age <=2s. Expiry, changed input or absent events falls back to the basic model. Invalidation
+clears the cache. This limited fingerprint still does not certify every condition, and the observed estimate is never
+counted as an actual hit/damage or a successful comparison. All beta records keep fullConditionsVerified=false.
+Native callback ordering and the new UI have not been executed in the game; static inspection/build/tests do not
+prove complete state/RNG noninterference. Existing legacy replay remains blocked.

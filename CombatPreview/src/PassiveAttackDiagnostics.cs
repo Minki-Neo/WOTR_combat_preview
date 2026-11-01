@@ -34,8 +34,12 @@ namespace CombatPreview
         internal void Reset() { recorder.Enabled = false; active = false; lastPreview = null; }
         internal void PreviewShown(BetaSnapshot snapshot)
         {
-            if (!CanObserve() || snapshot == null || lastPreview == snapshot.Id || !Main.Settings.CompareBeta) return;
-            if (recorder.RecordBetaPreview(snapshot)) lastPreview = snapshot.Id;
+            if (!CanObserve() || snapshot == null || !Main.Settings.CompareBeta) return;
+            var s = Main.Settings;
+            bool manual = s.ManualScenario && s.ScenarioConfirmed;
+            string key = snapshot.Id + "|" + manual + "|" + s.ScenarioDR + "|" + s.ScenarioBypassDR + "|" + s.ScenarioPhysicalImmune;
+            if (lastPreview == key) return;
+            if (recorder.RecordBetaPreview(snapshot, manual ? DefenseReader.Scenario(s) : null)) lastPreview = key;
         }
         internal string Status { get { return recorder.Faulted ? "Stopped after a file write failure"
             : "Dropped by rate limit: " + recorder.Dropped + " | Ignored simulated events: " + recorder.IgnoredSimulated; } }
@@ -52,6 +56,14 @@ namespace CombatPreview
         public void OnEventAboutToTrigger(RuleAttackRoll evt) { }
         public void OnEventDidTrigger(RuleAttackRoll evt)
         {
+            if (evt != null && evt.IsFake)
+            {
+                // Read an estimate the game already made, without initiating or
+                // replaying it. Keep it out of all actual-attack/damage counts.
+                BetaRuntime.ObserveGameEstimate(evt);
+                if (CanObserve()) recorder.IgnoreSimulated();
+                return;
+            }
             if (!CanObserve()) return;
             try
             {

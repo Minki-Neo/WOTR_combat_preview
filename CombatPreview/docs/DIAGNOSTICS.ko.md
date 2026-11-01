@@ -1,4 +1,4 @@
-# 로컬 진단 사용법 — 0.3.0 베타
+# 로컬 진단 사용법 — 0.3.1 베타
 
 Ctrl+F10 → Combat Preview (Read-only Beta)에서 **베타 무기 미리보기 켜기**와
 **표시 모델과 실제 AB/AC/무기 구성의 차이를 로컬 로그에 기록**을 켭니다.
@@ -33,7 +33,7 @@ Ctrl+F10 → Combat Preview (Read-only Beta)에서 **베타 무기 미리보기 
 `rateLimitedRecords`와 `ignoredSimulatedEvents`는 기록 제한/가짜 이벤트 제외 카운터입니다.
 회전이나 기록 제한으로 연결 레코드가 빠질 수 있으며 분석 도구가 누락을 보고합니다.
 게임 버전/MVID/UMM/Harmony 정보는 각 레코드와 UMM 로그에서 확인합니다.
-**0.3.0 UI와 실제 비교 경로는 사용자 게임에서 아직 검증하지 않았습니다.**
+**0.3.0의 패널/체력 표시와 비교 연결은 사용자 실행에서 관측했습니다. 0.3.1 새 UI와 게임 추정 사본 경로는 아직 게임에서 검증하지 않았습니다.**
 
 ## 실제 이벤트 관측
 
@@ -97,3 +97,17 @@ python3 tools/analyze_diagnostics.py /tmp/new-beta-example.jsonl
 
 `docs/examples/beta-fixture.jsonl`은 AB 차이 1건과 기대값 비교를 하지 않는 실제 피해 예시입니다.
 게임 실행 결과가 아닌 `FIXTURE`입니다. 실제 세션과 합쳐 정확도 통계를 내지 않습니다.
+
+## 0.3.1 추가 필드
+
+`beta-preview.basis`는 기본 능력치 모델 또는 `observed-existing-estimate/basic-primary-iteratives`입니다.
+후자는 게임이 이미 만든 완료된 가짜 추정의 스칼라 사본이며 이 모드가 생성한 이벤트가 아닙니다.
+가짜 이벤트는 계속 실제 공격/피해 통계에서 제외하며 제외 카운터를 유지합니다.
+
+`damageComponents`는 화면의 모든 피해 구성(kind/rolls/sides/bonus/multiplies), 행별 `meanOnHitRaw`는
+치명타 포함·빗나감 제외의 조건부 방어 전 평균입니다. `actualDamageComponents`와 `Damage[n]`
+차이 필드로 추가 구성의 주사위/보너스/종류도 비교합니다. 적용 후 방어가 확인됐다는 뜻은 아닙니다.
+
+수동 시나리오를 선택하면 `manualScenario=true`이고 `expectedManualScenario` 및
+`meanOnHitManualScenario`를 별도로 기록합니다. 실제 대상의 `afterDefenseAvailable`은 계속 false입니다.
+기본 방어 전 수치는 덮어쓰지 않습니다. 화면의 `—`는 미확인이며 0을 의미하지 않습니다.

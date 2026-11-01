@@ -223,17 +223,30 @@ namespace CombatPreview
                     + ",\"comparison\":\"NotCompared: no verified damage snapshot\"");
             }
         }
-        public bool RecordBetaPreview(BetaSnapshot preview)
+        static string BetaComponents(IEnumerable<DamageComponentSnapshot> components)
+        {
+            return components == null ? "null" : "[" + string.Join(",", components.Select(c => "{\"kind\":" + Quote(c.Kind.ToString())
+                + ",\"rolls\":" + c.Rolls + ",\"sides\":" + c.Sides + ",\"bonus\":" + c.Bonus + ",\"multiplies\":" + Bool(c.Multiplies) + "}").ToArray()) + "]";
+        }
+        public bool RecordBetaPreview(BetaSnapshot preview, DefenseProfile manualScenario = null)
         {
             lock (gate)
             {
                 if (!enabled || busy || preview == null) return false;
-                string rows = "[" + string.Join(",", preview.Rows.Select(r => "{\"index\":" + r.Index + ",\"penalty\":" + r.Penalty
+                var scenarios = preview.Rows.Select(r => manualScenario != null && preview.Input.DamageKnown
+                    ? MitigationMath.Calculate(preview.Input.Components.Select(c => c.ToTerm()).ToArray(), preview.Input.Multiplier, r.Hit, r.Crit, manualScenario)
+                    : null).ToArray();
+                string rows = "[" + string.Join(",", preview.Rows.Select((r, i) => "{\"index\":" + r.Index + ",\"penalty\":" + r.Penalty
                     + ",\"ab\":" + r.AB + ",\"ac\":" + r.AC + ",\"hit\":" + Number(r.Hit) + ",\"crit\":" + Number(r.Crit)
+                    + ",\"meanOnHitRaw\":" + NullableNumber(r.MeanOnHit)
+                    + ",\"expectedManualScenario\":" + NullableNumber(scenarios[i] != null && scenarios[i].Available ? scenarios[i].Expected : (double?)null)
+                    + ",\"meanOnHitManualScenario\":" + NullableNumber(scenarios[i] != null && scenarios[i].Available && r.Hit > 0 ? scenarios[i].Expected / r.Hit : (double?)null)
                     + ",\"expectedRaw\":" + NullableNumber(r.ExpectedRaw) + "}").ToArray()) + "]";
                 return Emit(clock(), "beta-preview", preview.Id, preview.Context(), "\"previewId\":" + Quote(preview.Id)
                     + ",\"betaActorId\":" + Quote(preview.Input.Actor) + ",\"betaTargetId\":" + Quote(preview.Input.Target) + ",\"betaWeaponId\":" + Quote(preview.Input.Weapon)
-                    + ",\"quality\":\"PartialEstimate\",\"basis\":\"cached-stats/basic-primary-weapon\",\"fullConditionsVerified\":false"
+                    + ",\"quality\":\"PartialEstimate\",\"basis\":" + Quote(preview.Input.Source) + ",\"fullConditionsVerified\":false"
+                    + ",\"damageComponents\":" + BetaComponents(preview.Input.Components)
+                    + ",\"manualScenario\":" + Bool(manualScenario != null)
                     + ",\"defensePartPresent\":" + Bool(preview.Input.DefensePartPresent) + ",\"afterDefenseAvailable\":false"
                     + ",\"scopeNotes\":" + StringArray(preview.Notes) + ",\"rows\":" + rows);
             }
@@ -252,6 +265,7 @@ namespace CombatPreview
                     + ",\"actualAB\":" + comparison.ActualAB + ",\"actualAC\":" + comparison.ActualAC
                     + ",\"actualRolls\":" + NullableNumber(comparison.ActualRolls) + ",\"actualSides\":" + NullableNumber(comparison.ActualSides)
                     + ",\"actualBonus\":" + NullableNumber(comparison.ActualBonus)
+                    + ",\"actualDamageComponents\":" + BetaComponents(comparison.ActualComponents)
                     + ",\"predictedRolls\":" + comparison.Preview.Input.Rolls + ",\"predictedSides\":" + comparison.Preview.Input.Sides
                     + ",\"predictedBonus\":" + comparison.Preview.Input.Bonus
                     + ",\"differentFields\":" + StringArray(comparison.Differences)
