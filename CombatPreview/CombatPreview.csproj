@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <AssemblyName>CombatPreview</AssemblyName>
-    <Version>0.4.0</Version>
+    <Version>0.5.0</Version>
     <DefineConstants>WOTR</DefineConstants>
     <LangVersion>latest</LangVersion>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>

@@ -138,6 +138,9 @@ namespace CombatPreview
         public BetaSnapshot Preview { get; internal set; }
         public BetaRow Row { get; internal set; }
         public BetaComparisonStatus Status { get; internal set; }
+        public IReadOnlyList<string> InputChanges { get; internal set; }
+        public long DisplayAgeAtBeginMs { get; internal set; }
+        public long AttackDurationMs { get; internal set; }
         public int ActualAB { get; internal set; }
         public int ActualAC { get; internal set; }
         public int? ActualRolls { get; internal set; }
@@ -150,7 +153,7 @@ namespace CombatPreview
     }
     public sealed class BetaTracker
     {
-        sealed class Pending { internal BetaSnapshot Preview; internal BetaRow Row; internal BetaComparisonStatus Status; internal long Time; }
+        sealed class Pending { internal BetaSnapshot Preview; internal BetaRow Row; internal BetaComparisonStatus Status; internal long Time, DisplayAge; internal string[] Changes; }
         sealed class Displayed { internal BetaSnapshot Preview; internal long Time; }
         readonly Dictionary<string, Displayed> shown = new Dictionary<string, Displayed>();
         readonly Dictionary<string, Pending> pending = new Dictionary<string, Pending>();
@@ -171,7 +174,22 @@ namespace CombatPreview
             if (!shown.TryGetValue(Key(current), out displayed)) displayed = shown.Values.First(v => v.Preview.Input.Actor == current.Actor && v.Preview.Input.Target == current.Target);
             var preview = displayed.Preview;
             if (pending.Count >= 32) pending.Remove(pending.OrderBy(p => p.Value.Time).First().Key);
-            var p = new Pending { Preview = preview, Time = now, Status = BetaComparisonStatus.ComparedPartialModel };
+            var changes = new List<string>();
+            var previous = preview.Input;
+            if (previous.Source != current.Source) changes.Add("Source");
+            if (previous.AttackBonus != current.AttackBonus) changes.Add("AB");
+            if (previous.AC != current.AC) changes.Add("AC");
+            if (previous.BAB != current.BAB) changes.Add("BAB");
+            if (previous.Rolls != current.Rolls || previous.Sides != current.Sides || previous.Bonus != current.Bonus) changes.Add("WeaponDamage");
+            if (previous.CriticalEdge != current.CriticalEdge || previous.Multiplier != current.Multiplier) changes.Add("Critical");
+            if (previous.PendingAttack != current.PendingAttack || previous.PendingDamage != current.PendingDamage) changes.Add("PendingModifiers");
+            if (previous.Grip != current.Grip) changes.Add("Grip");
+            if (!previous.AttackPenalties.SequenceEqual(current.AttackPenalties)) changes.Add("AttackPattern");
+            if (!previous.ModifierNotes.SequenceEqual(current.ModifierNotes)) changes.Add("ModifierEvidence");
+            if (!previous.DefenseNotes.SequenceEqual(current.DefenseNotes)) changes.Add("DefenseEvidence");
+            if (previous.Signature != current.Signature) changes.Add("ContextSignature");
+            var p = new Pending { Preview = preview, Time = now, DisplayAge = now - displayed.Time,
+                Changes = changes.ToArray(), Status = BetaComparisonStatus.ComparedPartialModel };
             int rowIndex = current.NaturalWeapon && index >= 0 ? 0 : index;
             if (now < displayed.Time || now - displayed.Time > 2000) p.Status = BetaComparisonStatus.PreviewExpired;
             else if (preview.Input.Weapon != current.Weapon || preview.Input.Weapon != (actualWeapon ?? current.Weapon) || preview.Input.Turn != current.Turn) p.Status = BetaComparisonStatus.PairChanged;
@@ -190,6 +208,7 @@ namespace CombatPreview
             if (eventId == null || !pending.TryGetValue(eventId, out p)) return null;
             pending.Remove(eventId);
             var result = new BetaComparison { Preview = p.Preview, Row = p.Row, Status = p.Status,
+                InputChanges = Array.AsReadOnly(p.Changes), DisplayAgeAtBeginMs = p.DisplayAge, AttackDurationMs = now - p.Time,
                 ActualAB = ab, ActualAC = ac, ActualRolls = rolls, ActualSides = sides, ActualBonus = bonus,
                 ActualComponents = actualComponents == null ? null : Array.AsReadOnly(actualComponents.ToArray()),
                 Differences = Array.AsReadOnly(new string[0]), ComparedFields = Array.AsReadOnly(new string[0]) };

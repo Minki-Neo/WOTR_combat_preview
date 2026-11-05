@@ -24,6 +24,26 @@ static class NativeDefenseTests
             Check(SupportedCombatRules.DamageModifier(2, bab, 2, true, true, false, true, true, true) == 12 * scale, "greater PA doubles before fact-rank scaling");
             Check(SupportedCombatRules.AttackModifier(-1, bab, 2, false, 3) == -6, "constant ability/fact rank/multiplier");
         }
+        for (int immune = 0; immune < 8; immune++)
+            for (int form = 0; form < 8; form++)
+                Check(SupportedCombatRules.PhysicalImmunity(immune, form, true) == (form != 0 && (form & immune) == form), "physical immunity requires every damage form, combining masks");
+        Check(SupportedCombatRules.PhysicalImmunity(1, 0, false) == null, "unknown weapon forms do not silently bypass immunity");
+        Check(SupportedCombatRules.PhysicalImmunity(0, 0, false) == false, "no immunity does not require weapon form metadata");
+        var physicalImmune = new DefenseProfile { Complete = true, Source = "physical-immunity-fixture" };
+        physicalImmune.Immunities.Add(DamageKind.Physical);
+        var physicalTerms = new[] { new DamageTerm(1, 8, 10, true) { Kind = DamageKind.Physical } };
+        var immuneResult = MitigationMath.Calculate(physicalTerms, 3, .8, .1, physicalImmune);
+        Check(immuneResult.Available && immuneResult.Expected == 0 && immuneResult.Normal.Max == 0 && immuneResult.Critical.Max == 0, "physical immunity yields zero even for criticals and minimum physical damage");
+        var mixedImmune = MitigationMath.Calculate(new[] { physicalTerms[0], new DamageTerm(1, 6, 0, false) { Kind = DamageKind.Fire } }, 3, .8, .1, physicalImmune);
+        Near(mixedImmune.Expected, 2.8, "physical immunity preserves additional fire damage");
+        var allImmune = new DefenseProfile { Complete = true, Source = "complete-immunity-fixture" };
+        SupportedCombatRules.AddCompleteImmunity(allImmune);
+        foreach (DamageKind kind in Enum.GetValues(typeof(DamageKind)))
+        {
+            if (kind == DamageKind.Unknown) continue;
+            Check(MitigationMath.Calculate(new[] { new DamageTerm(1, 6, 4, true) { Kind = kind } }, 2, 1, .1, allImmune).Expected == 0, "complete immunity covers each supported damage type");
+        }
+        Check(SupportedCombatRules.DefenseStamp(allImmune) != SupportedCombatRules.DefenseStamp(physicalImmune), "immunity change invalidates defense cache");
         Check(!SupportedCombatRules.Bypass(false, new bool?[0]).Value, "DR dash always applies");
         Check(SupportedCombatRules.Bypass(true, new bool?[] { false, true, null }) == true, "OR accepts a deciding known bypass");
         Check(SupportedCombatRules.Bypass(false, new bool?[] { false, true, null }) == false, "AND deciding mismatch keeps DR even with unknown other clause");
@@ -104,14 +124,21 @@ static class NativeDefenseTests
         foreach (string stamp in new[] { "on", "other actor", "other weapon", "other turn", "other grip", "new rank" })
             Check(cache.Read(stamp, 101) == null, "context/toggle mismatch does not reuse native result");
         Check(cache.Read("off|actor|weapon|turn|grip|rank", 99) == null && cache.Read("off|actor|weapon|turn|grip|rank", 1601) == null, "native cache has bounded lifetime and monotonic clock checks");
-        cache.Put("off|actor|weapon|turn|grip|rank", new NativeCombatValues(null, 19, 2, native.Components, null), 101);
+        cache.Put("off|actor|weapon|turn|grip|rank", new NativeCombatValues(null, native.Edge, native.Multiplier, native.Components, null, native.Enhancement, native.EnhancementTotal, native.Materials, native.Alignment, native.Form, native.TraitsKnown), 101);
         Check(cache.Read("off|actor|weapon|turn|grip|rank", 101).AttackBonus == 5, "weapon-stat callback cannot erase a just completed AB calculation");
+        Check(cache.ReadStatus("off|actor|weapon|turn|grip|rank", 1601) == "Expired", "identical callbacks do not extend old AB lifetime");
+        var changedDice = new NativeCombatValues(null, 20, 2, new[] { new DamageComponentSnapshot(new DamageTerm(1, 4, 3, true) { Kind = DamageKind.Physical }, false, null) }, null);
+        cache.Put("off|actor|weapon|turn|grip|rank", changedDice, 102);
+        Check(cache.Read("off|actor|weapon|turn|grip|rank", 102).Components[0].Sides == 4, "new completed weapon dice replace older AB-associated dice");
+        Check(!cache.Read("off|actor|weapon|turn|grip|rank", 102).AttackBonus.HasValue, "changed weapon stats never inherit an unrelated AB total");
+        Check(cache.ReadStatus("other", 102) == "ContextMiss" && cache.ReadStatus("off|actor|weapon|turn|grip|rank", 101) == "ClockRegression", "cache miss and clock regression are distinguished");
         cache.Clear(); Check(cache.Read("off|actor|weapon|turn|grip|rank", 101) == null, "disable/scene clear drops native results");
+        Check(cache.ReadStatus("empty", 103) == "NotObserved", "empty cache is distinct from changed context");
         var log = new List<string>(); var recorder = new DiagnosticRecorder(log.Add, () => 1, "fixture") { Enabled = true };
-        recorder.RecordBetaPreview(model); recorder.RecordBetaPreview(BetaModel.Build(applied, "engine"));
+        recorder.RecordBetaPreview(model, nativeCacheStatus: "Expired"); recorder.RecordBetaPreview(BetaModel.Build(applied, "engine"));
         using (var json = JsonDocument.Parse(log.Single(s => s.Contains("\"previewId\":\"dr5\""))))
         {
-            var root = json.RootElement; Check(root.GetProperty("afterDefenseAvailable").GetBoolean(), "DR availability logged truthfully");
+            var root = json.RootElement; Check(root.GetProperty("nativeCacheStatus").GetString() == "Expired", "cache rejection reason is serialized"); Check(root.GetProperty("afterDefenseAvailable").GetBoolean(), "DR availability logged truthfully");
             Check(!root.GetProperty("fullConditionsVerified").GetBoolean(), "supported DR model does not certify all combat/mod conditions");
             Near(root.GetProperty("rows")[0].GetProperty("expectedAfterDefense").GetDouble(), row.AfterDefense.Expected, "logged expectation equals shown beta row calculation");
         }

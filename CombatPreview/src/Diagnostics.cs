@@ -228,8 +228,18 @@ namespace CombatPreview
             return components == null ? "null" : "[" + string.Join(",", components.Select(c => "{\"kind\":" + Quote(c.Kind.ToString())
                 + ",\"rolls\":" + c.Rolls + ",\"sides\":" + c.Sides + ",\"bonus\":" + c.Bonus + ",\"multiplies\":" + Bool(c.Multiplies) + "}").ToArray()) + "]";
         }
+        public bool RecordSpellPreview(DiagnosticContext context, string ability, IEnumerable<string> checks, bool observedTargets)
+        {
+            lock (gate)
+            {
+                if (!enabled || busy || context == null) return false;
+                return Emit(clock(), "spell-preview", null, context,
+                    "\"ability\":" + Quote(ability) + ",\"quality\":\"PartialEstimate\",\"fullConditionsVerified\":false"
+                    + ",\"observedTargetMembership\":" + Bool(observedTargets) + ",\"checks\":" + StringArray(checks));
+            }
+        }
         public bool RecordBetaPreview(BetaSnapshot preview, DefenseProfile manualScenario = null,
-            string observerStatus = null, long observedAB = 0, long observedAC = 0, long observedCounts = 0, long observedBaseAB = 0, long observedWeaponStats = 0)
+            string observerStatus = null, long observedAB = 0, long observedAC = 0, long observedCounts = 0, long observedBaseAB = 0, long observedWeaponStats = 0, string nativeCacheStatus = null)
         {
             lock (gate)
             {
@@ -259,6 +269,7 @@ namespace CombatPreview
                     + ",\"completedRuleObserver\":" + Quote(observerStatus)
                     + ",\"observedABResults\":" + observedAB + ",\"observedACResults\":" + observedAC
                     + ",\"observedAttackCounts\":" + observedCounts
+                    + ",\"nativeCacheStatus\":" + Quote(nativeCacheStatus)
                     + ",\"observedBaseABResults\":" + observedBaseAB + ",\"observedWeaponStats\":" + observedWeaponStats
                     + ",\"attackObserved\":" + Bool(preview.Input.AttackObserved) + ",\"acObserved\":" + Bool(preview.Input.ACObserved)
                     + ",\"damageObserved\":" + Bool(preview.Input.DamageObserved)
@@ -280,6 +291,9 @@ namespace CombatPreview
                 Emit(clock(), "beta-comparison", comparison.Preview.Id, actual, "\"previewId\":" + Quote(comparison.Preview.Id)
                     + ",\"betaActorId\":" + Quote(comparison.Preview.Input.Actor) + ",\"betaTargetId\":" + Quote(comparison.Preview.Input.Target) + ",\"betaWeaponId\":" + Quote(comparison.Preview.Input.Weapon)
                     + ",\"rollEventId\":" + Quote(rollEventId) + ",\"status\":" + Quote(comparison.Status.ToString())
+                    + ",\"inputChanges\":" + StringArray(comparison.InputChanges ?? new string[0])
+                    + ",\"displayAgeAtBeginMs\":" + comparison.DisplayAgeAtBeginMs
+                    + ",\"attackDurationMs\":" + comparison.AttackDurationMs
                     + ",\"scope\":\"partial model inputs only\",\"fullConditionsVerified\":false"
                     + ",\"predictedAB\":" + (comparison.Row == null ? "null" : comparison.Row.AB.ToString(CultureInfo.InvariantCulture))
                     + ",\"predictedAC\":" + (comparison.Row == null ? "null" : comparison.Row.AC.ToString(CultureInfo.InvariantCulture))

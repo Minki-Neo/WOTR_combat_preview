@@ -32,6 +32,14 @@ namespace CombatPreview
             });
         }
         internal void Reset() { recorder.Enabled = false; active = false; loggedPreviews.Clear(); }
+        internal void SpellShown(DiagnosticContext context, string ability, List<string> checks, bool observedTargets)
+        {
+            if (!CanObserve() || !Main.Settings.CompareBeta) return;
+            string key = "spell|" + context.Slot + "|" + observedTargets + "|" + string.Join(";", checks);
+            if (loggedPreviews.Contains(key)) return;
+            if (loggedPreviews.Count > 256) loggedPreviews.Clear();
+            if (recorder.RecordSpellPreview(context, ability, checks, observedTargets)) loggedPreviews.Add(key);
+        }
         internal void PreviewShown(BetaSnapshot snapshot)
         {
             if (!CanObserve() || snapshot == null || !Main.Settings.CompareBeta) return;
@@ -41,7 +49,7 @@ namespace CombatPreview
             if (loggedPreviews.Contains(key)) return;
             if (loggedPreviews.Count > 256) loggedPreviews.Clear();
             if (recorder.RecordBetaPreview(snapshot, manual ? DefenseReader.Scenario(s) : null,
-                PassiveRuleResults.Installed ? "Installed" : "Unavailable", BetaRuntime.ObservedAB, BetaRuntime.ObservedAC, BetaRuntime.ObservedCounts, BetaRuntime.ObservedBaseAB, BetaRuntime.ObservedWeaponStats)) loggedPreviews.Add(key);
+                PassiveRuleResults.Installed ? "Installed" : "Unavailable", BetaRuntime.ObservedAB, BetaRuntime.ObservedAC, BetaRuntime.ObservedCounts, BetaRuntime.ObservedBaseAB, BetaRuntime.ObservedWeaponStats, BetaRuntime.NativeCacheStatus)) loggedPreviews.Add(key);
         }
         internal string Status { get { return recorder.Faulted ? "Stopped after a file write failure"
             : "Dropped by rate limit: " + recorder.Dropped + " | Ignored simulated events: " + recorder.IgnoredSimulated; } }

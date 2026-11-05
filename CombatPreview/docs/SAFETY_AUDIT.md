@@ -214,3 +214,19 @@ not all rules/modifiers certified. The old strict DefenseObservation providers r
 
 The supplied assembly's field/method layout was checked by reflection without executing game methods (33 checks). This is metadata validation,
 not an in-game Harmony installation, UI, correctness or state/RNG invariance test. No new live execution evidence is claimed for 0.4.0.
+
+### 0.5.0 spell UI observers (local test)
+
+Two additional explicit Priority.Last postfixes observe AbilityData.CalculateParams and
+AbilityData.WouldCurrentlyTarget. Neither receives ref/out inputs or replaces results.
+The former copies DC/CL/metamagic scalars after a game-owned calculation; the latter copies
+already-computed inclusion for the currently selected ability. No preview path invokes either method,
+CanTarget, ContextValue.Calculate, action handlers, DryRun or Rulebook.Trigger. Loaded entity proxies
+and cached blueprint references are read directly. Parameter evidence is bounded to64 entries,
+1500ms and a caster/equipment/metamagic/override context stamp; targeting evidence is bounded to128
+entries/250ms and invalidated on selection/aim changes. Display caps32 visible live units.
+
+Probabilities are conditional baseline d20 values, not a certification of full spell outcomes.
+Conditional/custom save DC and unrecognized delivery paths are refused. Effect immunity, save
+replacement/auto-pass, conditional bonuses and special rerolls are not certified. No combined debuff
+success percentage is produced. The legacy SpellChance/DryRun predictor remains blocked.

@@ -69,12 +69,17 @@ namespace CombatPreview
             {
                 var game = Game.Instance;
                 if (!BetaRuntime.Enabled || game == null || !CombatController.IsInTurnBasedCombat()
-                    || (game.CurrentMode != GameModeType.Default && game.CurrentMode != GameModeType.Pause)
-                    || game.SelectedAbilityHandler?.SelectedAbility != null)
+                    || (game.CurrentMode != GameModeType.Default && game.CurrentMode != GameModeType.Pause))
                 { Hide(); BetaRuntime.Invalidate(); return; }
                 var turn = game.TurnBasedCombatController.CurrentTurn;
                 var unit = CombatController.SelectedUnit;
                 if (turn == null || unit == null || !unit.IsDirectlyControllable) { Hide(); BetaRuntime.Invalidate(); return; }
+                if (game.SelectedAbilityHandler?.SelectedAbility != null)
+                {
+                    UpdateSpellPanel(game.SelectedAbilityHandler.SelectedAbility, unit);
+                    return;
+                }
+                if (panelSpellAbility != null) { Hide(); panelSpellAbility = null; }
                 if (m_Target != null && Key(Main.Settings.DetailsKey, KeyCode.F6)) Main.Settings.PanelDetails = !Main.Settings.PanelDetails;
                 if (m_Target != null && Key(Main.Settings.PinKey, KeyCode.F7)) retention.TogglePin();
                 long now = (long)(Time.unscaledTime * 1000);
@@ -134,7 +139,7 @@ namespace CombatPreview
                 Main.Error("Read-only beta preview disabled after failure", e);
             }
         }
-        void Hide() { panelSnapshot = null; panelReason = null; targetHealth = null; m_Target = null; attacker = null; nextRefresh = 0; panelAttacks.Clear(); retention.Clear(); panelHeld = false; HidePanelBlocker(); }
+        void Hide() { panelSpellAbility = null; spellRows.Clear(); panelSnapshot = null; panelReason = null; targetHealth = null; m_Target = null; attacker = null; nextRefresh = 0; panelAttacks.Clear(); retention.Clear(); panelHeld = false; HidePanelBlocker(); }
         internal static void Invalidate()
         { if (instance != null) { instance.Hide(); instance.hovered = null; } BetaRuntime.Invalidate(); }
         void OnDestroy()

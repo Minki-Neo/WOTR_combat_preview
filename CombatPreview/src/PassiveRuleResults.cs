@@ -28,12 +28,16 @@ namespace CombatPreview
                     postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterBaseAB)) { priority = Priority.Last });
                 instance.Patch(AccessTools.Method(typeof(RuleCalculateWeaponStats), "OnTrigger"),
                     postfix: new HarmonyMethod(typeof(PassiveRuleResults), nameof(AfterWeapon)) { priority = Priority.Last });
+                instance.Patch(AccessTools.Method(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "CalculateParams", Type.EmptyTypes),
+                    postfix: new HarmonyMethod(typeof(SpellPreviewRuntime), nameof(SpellPreviewRuntime.ObserveParameters)) { priority = Priority.Last });
+                instance.Patch(AccessTools.Method(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "WouldCurrentlyTarget"),
+                    postfix: new HarmonyMethod(typeof(SpellPreviewRuntime), nameof(SpellPreviewRuntime.ObserveTarget)) { priority = Priority.Last });
                 harmony = instance; faulted = false;
             }
             catch { instance.UnpatchAll(Owner); throw; }
         }
         internal static void Remove()
-        { if (harmony != null) harmony.UnpatchAll(Owner); harmony = null; }
+        { if (harmony != null) harmony.UnpatchAll(Owner); harmony = null; SpellPreviewRuntime.Clear(); }
         static void AfterAB(RuleCalculateAttackBonus __instance)
         { Read(() => BetaRuntime.ObserveABResult(__instance)); }
         static void AfterAC(RuleCalculateAC __instance)

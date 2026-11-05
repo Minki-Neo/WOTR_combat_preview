@@ -46,11 +46,27 @@ namespace CombatPreview
             if (values.Count >= 64 && !values.ContainsKey(stamp)) values.Clear();
             Entry old;
             // A separate weapon-stat callback must not erase the more complete AB result.
-            if (!value.AttackBonus.HasValue && values.TryGetValue(stamp, out old) && now >= old.Time && now - old.Time <= 1500 && old.Value.AttackBonus.HasValue) return;
+            if (!value.AttackBonus.HasValue && values.TryGetValue(stamp, out old) && now >= old.Time && now - old.Time <= 1500 && old.Value.AttackBonus.HasValue
+                && SameDamage(old.Value, value)) return;
             values[stamp] = new Entry { Value = value, Time = now };
         }
+        static bool SameDamage(NativeCombatValues a, NativeCombatValues b)
+        {
+            return a.Edge == b.Edge && a.Multiplier == b.Multiplier && a.Enhancement == b.Enhancement
+                && a.EnhancementTotal == b.EnhancementTotal && a.Materials == b.Materials && a.Alignment == b.Alignment
+                && a.Form == b.Form && a.TraitsKnown == b.TraitsKnown && a.Components.Count == b.Components.Count
+                && a.Components.Zip(b.Components, (x, y) => x.Kind == y.Kind && x.Rolls == y.Rolls && x.Sides == y.Sides
+                    && x.Bonus == y.Bonus && x.Multiplies == y.Multiplies).All(equal => equal);
+        }
+        public string ReadStatus(string stamp, long now)
+        {
+            Entry e;
+            if (!values.TryGetValue(stamp, out e)) return values.Count == 0 ? "NotObserved" : "ContextMiss";
+            if (now < e.Time) return "ClockRegression";
+            return now - e.Time > 1500 ? "Expired" : "Hit";
+        }
         public NativeCombatValues Read(string stamp, long now)
-        { Entry e; return values.TryGetValue(stamp, out e) && now >= e.Time && now - e.Time <= 1500 ? e.Value : null; }
+        { Entry e; return ReadStatus(stamp, now) == "Hit" && values.TryGetValue(stamp, out e) ? e.Value : null; }
         public void Clear() { values.Clear(); }
     }
 }

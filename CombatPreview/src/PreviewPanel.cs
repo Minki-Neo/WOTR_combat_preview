@@ -110,7 +110,7 @@ namespace CombatPreview
             EnsurePanelStyles();
             if (BetaRuntime.AlertVisible)
                 GUI.Box(new Rect(Screen.width * .5f - 330, 35, 660, 52), BetaRuntime.Alert, cardStyle);
-            if (m_Target == null || (panelSnapshot == null && string.IsNullOrEmpty(panelReason))) { HidePanelBlocker(); return; }
+            if (m_Target == null || (panelSpellAbility == null && panelSnapshot == null && string.IsNullOrEmpty(panelReason))) { HidePanelBlocker(); return; }
             float scale = Mathf.Clamp(settings.Scale, .7f, 1.6f);
             var old = GUI.matrix;
             try
@@ -120,7 +120,7 @@ namespace CombatPreview
                 panelWidth = Mathf.Min(Mathf.Clamp(settings.Width, 620, 1100), sw - 12);
                 int rows = Math.Max(1, panelAttacks.Sum(a => a.Snapshot?.Rows.Count ?? 1));
                 int components = Math.Max(1, panelAttacks.Select(a => a.Snapshot?.Input.Components.Count ?? 1).DefaultIfEmpty(1).Max());
-                float height = PanelPresentation.CompactHeight(rows, components, settings.PanelDetails, sh);
+                float height = panelSpellAbility != null ? Mathf.Min(420, sh - 20) : PanelPresentation.CompactHeight(rows, components, settings.PanelDetails, sh);
                 panelHeight = height;
                 float x = settings.X, y = settings.Y;
                 if (settings.AnchorLeft) PanelPresentation.PlaceLeft(sw, sh, panelWidth, height, out x, out y);
@@ -157,6 +157,7 @@ namespace CombatPreview
                 GUI.DrawTexture(new Rect(0, panelHeight - 1, panelWidth, 1), Texture2D.whiteTexture);
             }
             finally { GUI.color = color; }
+            if (panelSpellAbility != null) { DrawSpellPanel(); return; }
             var settings = Main.Settings;
             GUILayout.Label("전투 미리보기 · " + m_Target.CharacterName + "  |  " + (targetHealth ?? "체력 미확인"), titleStyle);
             GUILayout.Label((panelHeld ? "보관 중 · 대상 위로 돌아가면 갱신" : retention.Pinned ? "고정 중" : settings.PinKey + " 고정") + "  |  " + settings.DetailsKey + " 상세  |  ~ 기본 추정", mutedStyle);

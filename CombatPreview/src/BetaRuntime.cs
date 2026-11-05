@@ -255,6 +255,7 @@ namespace CombatPreview
         static readonly Dictionary<string, WeaponTraits> ruleTraits = new Dictionary<string, WeaponTraits>();
         sealed class CountEntry { internal int[] Pattern; internal long Time; }
         static readonly Dictionary<string, CountEntry> attackCounts = new Dictionary<string, CountEntry>();
+        internal static string NativeCacheStatus { get; private set; }
         internal static long ObservedCounts;
         internal static long ObservedAB, ObservedAC, ObservedBaseAB, ObservedWeaponStats;
         static long sequence;
@@ -280,6 +281,7 @@ namespace CombatPreview
         static BetaInput CaptureInput(UnitEntityData actor, UnitEntityData target, bool full, ItemEntityWeapon weapon = null)
         {
             var input = BetaReader.Capture(actor, target, full, weapon);
+            NativeCacheStatus = Main.Settings.UseObservedPreview ? "TargetRulesSelected" : "Disabled";
             if (Main.Settings.UseObservedPreview)
             {
                 var selected = weapon ?? BetaReader.Primary(actor);
@@ -303,8 +305,10 @@ namespace CombatPreview
             if (Main.Settings.UseObservedPreview)
             {
                 var fake = !observedFaulted ? observed.Read(input, clock.ElapsedMilliseconds) : input;
-                if (fake != input) return fake;
-                var native = nativeWeapons.Read(BetaReader.NativeStamp(actor, weapon ?? BetaReader.Primary(actor)), clock.ElapsedMilliseconds);
+                if (fake != input) { NativeCacheStatus = "ExistingEstimateSelected"; return fake; }
+                var nativeStamp = BetaReader.NativeStamp(actor, weapon ?? BetaReader.Primary(actor));
+                NativeCacheStatus = nativeWeapons.ReadStatus(nativeStamp, clock.ElapsedMilliseconds);
+                var native = nativeWeapons.Read(nativeStamp, clock.ElapsedMilliseconds);
                 if (native != null)
                 {
                     List<string> notes;

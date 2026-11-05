@@ -29,6 +29,8 @@ namespace CombatPreview
             var immunities = CombatFields.Read(part, "m_Immunities") as IEnumerable;
             if (immunities != null) foreach (var value in immunities)
             { var f = CombatFields.Read(value, "SourceFact") as EntityFact; if (f != null) facts.Add(f); else missing.Add("면역 등록 소스 미확인"); }
+            int physicalImmunityForms = 0;
+            bool completeImmunity = false;
             int budget = 0;
             foreach (var fact in facts)
             {
@@ -37,6 +39,23 @@ namespace CombatPreview
                 {
                     if (++budget > 4096) { missing.Add("방어 판독 한도 초과"); break; }
                     var component = CombatFields.Component(runtime);
+                    if (component is CompleteDamageImmunity)
+                    {
+                        if (component.GetType() != typeof(CompleteDamageImmunity)) { missing.Add("미지원 전체 면역 파생 효과"); continue; }
+                        completeImmunity = true;
+                        SupportedCombatRules.AddCompleteImmunity(profile);
+                        details.Add(CombatFields.Label(fact) + ": 전체 피해 면역");
+                        continue;
+                    }
+                    if (component is AddPhysicalImmunity)
+                    {
+                        if (component.GetType() != typeof(AddPhysicalImmunity)) { missing.Add("미지원 물리 면역 파생 효과"); continue; }
+                        var forms = CombatFields.Read(component, "m_PhysicalDamageForms");
+                        if (!(forms is PhysicalDamageForm)) { missing.Add("물리 면역 형태 미확인"); continue; }
+                        physicalImmunityForms |= (int)(PhysicalDamageForm)forms;
+                        details.Add(CombatFields.Label(fact) + ": 물리 면역 형태 " + forms);
+                        continue;
+                    }
                     var resistance = component as AddDamageResistanceBase;
                     var immunity = component as AddEnergyDamageImmunity;
                     if (immunity != null)
@@ -77,11 +96,19 @@ namespace CombatPreview
                     else missing.Add("미지원 방어 효과 " + component.GetType().Name);
                 }
             }
+            if (!completeImmunity)
+            {
+                bool? physicalImmune = SupportedCombatRules.PhysicalImmunity(physicalImmunityForms, traits.Form, traits.Known);
+                if (!physicalImmune.HasValue) missing.Add("물리 면역 판정에 필요한 무기 피해 형태 미확인");
+                else if (physicalImmune.Value) { profile.Immunities.Add(DamageKind.Physical); details.Add("현재 무기 피해 형태에 물리 면역 적용"); }
+            }
             profile.Complete = missing.Count == 0;
             profile.UnavailableReason = string.Join("; ", missing.Distinct());
             details.AddRange(missing.Select(s => "미확인: " + s));
+            if (profile.Immunities.Count > 0)
+                details.Add("적용 면역: " + string.Join(", ", profile.Immunities.OrderBy(k => k)));
             if (profile.Complete)
-                details.Add("적용 최대값: " + (profile.Reduction.Count == 0 ? "DR/저항 없음" : string.Join(", ", profile.Reduction.Select(p => p.Key + " " + p.Value))));
+                details.Add("적용 최대값: " + (profile.Reduction.Count == 0 ? (profile.Immunities.Count == 0 ? "DR/저항 없음" : "DR/저항 없음 (면역은 별도 적용)") : string.Join(", ", profile.Reduction.Select(p => p.Key + " " + p.Value))));
             return profile;
         }
         static void Add(DefenseProfile profile, DamageKind kind, int amount, List<string> missing)

@@ -164,7 +164,18 @@ static class BetaTests
         Check(mismatch.HasDifference && mismatch.Differences.Contains("AB") && mismatch.Differences.Contains("AC")
             && mismatch.Differences.Contains("WeaponBonus") && mismatch.Differences.Contains("DamageComponents"), "deterministic differences identified");
         tracker.Shown(model, 0); tracker.Begin("attack", Input("buff-changed"), 0, true, 1);
-        Check(Finish(tracker).Status == BetaComparisonStatus.InputsChanged, "changed model input is not called a mismatch");
+        var changedInput = Finish(tracker);
+        Check(changedInput.Status == BetaComparisonStatus.InputsChanged, "changed model input is not called a mismatch");
+        Check(changedInput.InputChanges.Contains("ContextSignature") && !changedInput.InputChanges.Contains("AB"), "opaque context change is distinct from numeric AB change");
+        Check(changedInput.DisplayAgeAtBeginMs == 1 && changedInput.AttackDurationMs == 9, "display freshness and attack duration have separate clocks");
+        var changedLog = new List<string>();
+        var changedRecorder = new DiagnosticRecorder(changedLog.Add, () => 10, "changed-input-fixture") { Enabled = true };
+        changedRecorder.RecordBetaComparison(changedInput, model.Context(), "attack");
+        using (var changedJson = JsonDocument.Parse(changedLog.Single()))
+        {
+            Check(changedJson.RootElement.GetProperty("inputChanges").EnumerateArray().Any(v => v.GetString() == "ContextSignature"), "input rejection reason survives JSON serialization");
+            Check(changedJson.RootElement.GetProperty("displayAgeAtBeginMs").GetInt64() == 1, "logged age describes attack start rather than finish");
+        }
         tracker.Shown(model, 0); tracker.Begin("attack", input, 0, true, 2001);
         Check(Finish(tracker, now: 2010).Status == BetaComparisonStatus.PreviewExpired, "display freshness bounded");
         tracker.Shown(model, 0); tracker.Begin("attack", input, 0, true, 1);

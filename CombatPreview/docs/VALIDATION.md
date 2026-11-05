@@ -227,3 +227,61 @@ These are incomplete evidence, not proof of bypass/stacking/effective damage or 
 - Release checks: independent Python509 checks/2 project XML files; tree-sitter39 production/main-test C# files.
   The separate ReferenceLayout executable also compiled and passed33 metadata checks. Package build after successful NuGet audit restore:0 warnings/0 errors.
   Installation archive allowlist/CRC/current-DLL/doc/version checks and source archive dependency/raw-log exclusion were verified before publication.
+
+## Local cache/diagnostics fix — 2026-11-02 Asia/Seoul (unpublished)
+
+Fixed a completed weapon-stat callback being discarded solely because a fresh AB-bearing entry existed.
+Only identical damage, critical and bypass traits retain that entry; changed weapon results replace it without
+inheriting the older AB. Added cache rejection status and comparison input-change categories with separate
+start/display and attack-duration clocks. Comparison gates and cache TTL remain unchanged.
+
+Executed: 6699 original +138 contracts +330 beta +152 native assertions =7319; Python509 checks;
+39-file WOTR syntax parse; full net472 build with supplied private Managed/UMM references, zero errors
+and one existing unused Charge-field warning. Regression cases exercise changed dice replacing stale data,
+identical callback lifetime, context miss/clock regression, and structured diagnostic JSON serialization.
+Repository packaging verifies six-file mod-only allowlist and ZIP CRC. No game execution or new release publication.
+The logged natural-weapon AB4→6 and1d3→1d4 discrepancy is not proven resolved in-game by these tests;
+new diagnostics are needed to establish the source of that case and remaining fallback/comparison exclusions.
+
+## Physical/complete immunity fix — 2026-11-03 Asia/Seoul (unpublished)
+
+The automatic reader previously handled AddEnergyDamageImmunity but silently ignored
+AddPhysicalImmunity and CompleteDamageImmunity. It now reads the active physical masks
+and combines them using all-form coverage, and includes complete immunity for supported damage types.
+Unknown derived components or missing physical-form metadata produce unavailable results.
+The provided private game assembly was inspected statically to establish mask aggregation/coverage
+and complete-damage decline semantics; no rule handlers or game code were executed.
+Private decompilation outputs remain outside Git and distribution archives.
+
+Executed pure checks: 6699 original +138 contracts +330 beta +234 native =7401 assertions;
+Python509 checks;39 WOTR syntax files. Added exhaustive three-bit physical-form mask coverage,
+unknown-form refusal, physical normal/critical zero, preserved extra fire, each supported complete-immune
+damage type and immunity cache-stamp invalidation. Full net472 build succeeded with the existing unused
+Charge-field warning; reference metadata probe passed34 checks including the physical immunity mask field.
+The new user log contains263 previews/75 attacks/46 damage records; immunity defense notes are absent.
+Zero reported damage alone was not used to infer a specific immunity source or validate the fix.
+Game UI, installed buffs, attack-specific immunity bypass and end-to-end damage remain unverified in cloud.
+
+## 0.5.0 spell and AoE preview — 2026-11-04 Asia/Seoul (unpublished)
+
+Added a selected-ability panel with baseline touch/ranged-touch hit estimates, target save-failure
+probabilities from observed DC and cached saves, Persistent success reroll, and baseline caster-level
+SR checks for unconditional registered resistance. Attack/save natural1/20 differs intentionally from
+SR checks. Spell DC/CL are passively copied from game-owned CalculateParams completions, with bounded
+freshness and context checks. Custom/conditional save DC and special projectile delivery are refused.
+AoE membership is passively copied from game-owned WouldCurrentlyTarget results, with selection/aim
+invalidation, expiry, ally inclusion and a32-row display cap. Hover fallback explicitly lacks membership
+certification. Numeric values are conditional/partial and never presented as final debuff application rates.
+
+Executed:7401 existing assertions plus27 spell probability/JSON/target-window assertions =7428 total;
+509 independent Python checks;43 C# syntax files. Full net472 mod compiled against private supplied
+references with zero errors and the existing Charge-field warning. Metadata probe passed41 checks,
+including spell observer methods, cached touch AC, caster/metamagic/SR/save fields. Packaging checks
+CRC, six-file mod-only allowlist, current DLL identity and version0.5.0. No game UI execution was possible.
+
+Outstanding in-game checks: parameter observation availability while aiming; cancellation/switching
+and TTL waits; touch/ray vs normal attack classification; a direct Will debuff and Reflex area save;
+Persistent/conditional DC refusal; selected AoE circle/cone/line membership and ally rows; scrolling/held
+panel; conditional SR/immunity and no-certification labels; postfix installation/removal and save/RNG
+noninterference. No tests were disabled, no proprietary references or raw logs are packaged, and no
+GitHub release/push/publication was performed.

@@ -131,7 +131,7 @@ namespace CombatPreview
             GUILayout.Label(Compatibility.Summary);
             foreach (var issue in Compatibility.Issues) GUILayout.Label(issue);
             GUILayout.Label("읽기 전용 베타: 게임 공통 규칙 결과 우선 / 누락 항목은 부분 추정입니다. 실제 게임 표시/비교는 베타 검증 중입니다.");
-            bool show = GUILayout.Toggle(Settings.ShowOnHover, "베타 무기 미리보기 켜기 (기본 OFF)");
+            bool show = GUILayout.Toggle(Settings.ShowOnHover, "베타 무기·주문 미리보기 켜기 (기본 OFF)");
             if (show != Settings.ShowOnHover) { Settings.ShowOnHover = show && Compatibility.CanPreview; HoverChance.Invalidate(); SyncRuleObservers(); }
             Settings.CompareBeta = GUILayout.Toggle(Settings.CompareBeta, "표시 모델과 실제 AB/AC/무기 구성의 차이를 로컬 로그에 기록");
             Settings.BetaAlerts = GUILayout.Toggle(Settings.BetaAlerts, "모델 차이 알림 표시 (미반영 효과일 수 있음; 팝업으로 전투를 막지 않음)");

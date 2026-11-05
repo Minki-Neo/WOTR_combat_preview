@@ -91,5 +91,6 @@ class Program
         ContractTests.Run();
         BetaTests.Run();
         NativeDefenseTests.Run();
+        SpellPreviewTests.Run();
     }
 }

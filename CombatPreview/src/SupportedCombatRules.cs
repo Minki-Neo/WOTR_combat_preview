@@ -37,6 +37,19 @@ namespace CombatPreview
         }
         public static bool? AlignmentBypass(int required, int actual, int enhancementTotal, bool known)
         { return known ? (required & actual) != 0 || enhancementTotal >= 5 : (bool?)null; }
+        // Game physical immunity combines all active masks and requires coverage
+        // of every form on the incoming damage (not just one intersecting bit).
+        public static bool? PhysicalImmunity(int immuneForms, int damageForms, bool formsKnown)
+        {
+            if (immuneForms == 0) return false;
+            if (!formsKnown) return null;
+            return damageForms != 0 && (damageForms & ~immuneForms) == 0;
+        }
+        public static void AddCompleteImmunity(DefenseProfile profile)
+        {
+            foreach (DamageKind kind in Enum.GetValues(typeof(DamageKind)))
+                if (kind != DamageKind.Unknown) profile.Immunities.Add(kind);
+        }
         public static void AddReduction(DefenseProfile profile, DamageKind kind, int value)
         {
             if (value < 0 || value > 1000000) throw new ArgumentOutOfRangeException("value");
