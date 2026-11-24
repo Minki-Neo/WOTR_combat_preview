@@ -1,0 +1,8 @@
+{
+  "Name": "Combat Preview",
+  "Author": "Minki-Neo",
+  "Id": { "Id": "CombatPreview", "Type": "UMM" },
+  "Service": { "GitHub": { "Owner": "Minki-Neo", "RepoName": "WOTR_combat_preview" } },
+  "HomepageUrl": "https://github.com/Minki-Neo/WOTR_combat_preview",
+  "Tags": ["UserInterface", "Utilities"]
+}

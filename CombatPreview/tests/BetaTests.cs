@@ -19,6 +19,38 @@ static class BetaTests
     public static void Run()
     {
         var input = Input(); var model = BetaModel.Build(input, "shown-1");
+        BetaSnapshot FixedWeapon(string weapon, int damage, DefenseProfile profile, int images) => BetaModel.Build(
+            new BetaInput("actor", "target", weapon, "turn", weapon, 1, 100, 1, 0, 1, damage, 20, 1,
+                false, true, true, defense: profile).WithConcealment(0, weapon, images, true), weapon);
+        var sharedPool = new DefenseProfile { Complete = true, PhysicalPool = (5, 5) };
+        var firstWeapon = FixedWeapon("first", 4, sharedPool, 0);
+        var nextWeapon = FixedWeapon("second", 7, sharedPool, 0);
+        var sequence = BetaModel.BuildSequence(new[] { firstWeapon, nextWeapon });
+        Near(sequence.Sum(snapshot => snapshot.Rows[0].AfterDefense.Expected), 6,
+            "different weapons spend one physical pool instead of resetting it");
+        firstWeapon = FixedWeapon("first", 4, sharedPool, 1);
+        nextWeapon = FixedWeapon("second", 7, sharedPool, 1);
+        sequence = BetaModel.BuildSequence(new[] { firstWeapon, nextWeapon });
+        Near(sequence.Sum(snapshot => snapshot.Rows[0].AfterDefense.Expected), 2.5,
+            "different dice/weapon damage retains mirror and pool correlation");
+        Near(sequence[1].Rows[0].Hit, .75, "second weapon uses images left by first weapon");
+        sequence = BetaModel.BuildSequence(new[] { nextWeapon, firstWeapon });
+        Near(sequence.Sum(snapshot => snapshot.Rows[0].AfterDefense.Expected), 2,
+            "display order is a material input to shared mirror and protection prediction");
+        var bypassWeapon = FixedWeapon("bypass", 4, new DefenseProfile { Complete = true }, 1);
+        sequence = BetaModel.BuildSequence(new[] { bypassWeapon, nextWeapon });
+        Near(sequence.Sum(snapshot => snapshot.Rows[0].AfterDefense.Expected), 3.5,
+            "bypassing weapon consumes images but leaves physical protection for next weapon");
+        Near(firstWeapon.Rows[0].Hit, .5, "sequence does not mutate cached independent snapshots");
+        Func<DefenseProfile, string[], BetaInput> drInput = (profile, notes) => new BetaInput("actor", "target", "sword", "turn", "dr",
+            1, 1, 1, 1, 8, 0, 20, 2, false, true, true, defense: profile, defenseNotes: notes);
+        var drProfile = new DefenseProfile { Complete = true }; drProfile.Reduction[DamageKind.Physical] = 5;
+        Check(PanelPresentation.DefenseLabel(drInput(drProfile, new[] { "enemy effect: 물리 DR 5 적용 후보 (OR)" })).Contains("적용 DR 5"), "effective DR is visible");
+        drProfile.Reduction.Clear();
+        string bypassLabel = PanelPresentation.DefenseLabel(drInput(drProfile, new[] { "enemy effect: 물리 DR 10 관통 (OR)" }));
+        Check(bypassLabel.Contains("DR 10 관통") && bypassLabel.Contains("적용 DR 0"), "target DR survives successful weapon bypass in display");
+        drProfile.Complete = false;
+        Check(PanelPresentation.DefenseLabel(drInput(drProfile, new string[0])).Contains("미확인"), "incomplete defense is not displayed as zero DR");
         Check(WeaponModelRules.StrengthDamage(4, true) == 6 && WeaponModelRules.StrengthDamage(4, false) == 4, "longsword actual two-hand grip changes strength damage from four to six");
         Check(WeaponModelRules.StrengthDamage(-2, true) == -2 && WeaponModelRules.StrengthDamage(0, true) == 0, "negative strength penalty is not multiplied by two-hand grip");
         Check(WeaponModelRules.StrengthDamage(3, true) == 4, "odd positive strength multiplier rounds down");
@@ -41,8 +73,17 @@ static class BetaTests
         Near(correctedSword.Rows[0].Normal.Value.Mean, 10.5, "corrected 1d8+6 normal average");
         Near(correctedSword.Rows[0].MeanOnHit.Value, 11.55, "corrected 1d8+6 conditional mean includes critical chance");
         float leftX, leftY;
+        Near(PanelPresentation.HealthLoss(24, 29, 0, 13.86), 13.86, "mean damage segment follows expected damage");
+        Near(PanelPresentation.HealthLoss(4, 29, 0, 13.86), 4, "overkill is clipped to current HP");
+        Near(PanelPresentation.HealthLoss(24, 29, 5, 13.86), 0, "temporary HP does not imply exact mean loss after absorption");
+        Near(PanelPresentation.HealthLoss(24, 29, 0, null), 0, "unknown prediction has no invented loss segment");
+        Near(PanelPresentation.HealthLoss(24, 0, 0, 13.86), 0, "unknown max HP does not divide by zero");
         PanelPresentation.PlaceLeft(2560, 1440, 720, 341, out leftX, out leftY);
-        Check(leftX == 24 && leftY == 160, "new panel defaults to left rather than centered over combat");
+        Check(leftX == 0 && Math.Abs(leftY + 341 + 16 - 1440 * .78f) < .01f, "left panel bottom follows portrait fallback");
+        PanelPresentation.PlaceLeft(1920, 1080, 820, 341, 900, out leftX, out leftY);
+        Check(leftX == 0 && leftY == 543, "left panel stays 16 pixels above detected portraits");
+        PanelPresentation.PlaceLeft(800, 600, 788, 420, 460, out leftX, out leftY);
+        Check(leftX >= 0 && leftX + 788 <= 800 && leftY >= 0 && leftY + 420 < 460, "small screen remains visible above portraits");
         Check(PanelPresentation.CompactHeight(4, 1, true, 1440) < 400, "rider plus three natural attacks fits compact expanded layout");
         Check(PanelPresentation.CompactHeight(24, 4, true, 720) <= 420, "large attack list is height-bounded and scrollable");
         Check(model.Rows.Count == 4, "BAB16 basic primary iteratives");
@@ -56,6 +97,49 @@ static class BetaTests
         Near(model.Rows[0].Normal.Value.Mean, 19.5, "basic normal weapon mean");
         Near(model.Rows[0].Critical.Value.Mean, 39, "basic critical mean");
         Near(model.Rows[0].ExpectedRaw.Value, 16.0875, "raw expected value");
+        var concealed = BetaModel.Build(input.WithConcealment(.5, "concealed"), "concealed").Rows[0];
+        Near(concealed.HitAcOnly, .75, "concealment preserves the AC roll chance");
+        Near(concealed.Hit, .375, "total concealment halves hit chance");
+        Near(concealed.Crit, .0375, "concealment is applied once to critical chance");
+        Near(concealed.ExpectedRaw.Value, 16.0875 / 2, "expected damage includes concealment misses");
+        var partial = BetaModel.Build(input.WithConcealment(.2, "partially-concealed"), "partial").Rows[0];
+        Near(partial.Hit, .6, "partial concealment lowers chance by a factor of 0.8");
+        var reflected = BetaModel.Build(input.WithConcealment(0, "one-image", 1), "one-image");
+        Near(reflected.Rows[0].Hit, .375, "one image intercepts half of successful rolls");
+        Near(reflected.Rows[0].MirrorImageConsumed, .625, "image is removed by an intercepted hit or a five-point near miss");
+        Near(reflected.Rows[1].Hit, .40625, "second strike accounts for image consumption");
+        Near(reflected.Rows[0].ExpectedRaw.Value, model.Rows[0].ExpectedRaw.Value / 2, "image reduces expected normal and critical damage");
+        var logCase = new MirrorImageSequence(5);
+        Near(.76 * logCase.Apply(.76, 0), .76 / 6, "observed five-image 76-percent roll hits actual target about 13 percent");
+        Near(MirrorImageSequence.NearMiss(20, 16), .05, "natural one can still remove an image if within five of AC");
+        Near(MirrorImageSequence.NearMiss(20, 16, true), 0, "natural one is a hit under Always a Chance with enough bonus");
+        var changedTracker = new BetaTracker();
+        changedTracker.Shown(model, 0);
+        changedTracker.Begin("attack", Input("changed"), 1, true, 1);
+        var changedEvidence = Finish(changedTracker);
+        Check(changedEvidence.Status == BetaComparisonStatus.InputsChanged && changedEvidence.Row == null
+            && changedEvidence.PreviousRow?.AB == 17 && !changedEvidence.HasDifference,
+            "changed context preserves old attack row for diagnostics without certifying it");
+        var retained = DisplayedCombatEvidence.Capture(changedEvidence);
+        Near((int)retained["ab"], 17, "raw displayed AB survives changed input status");
+        Check((string)retained["rowAssociation"] == "PreviousDisplayedRowOnly", "raw evidence does not certify stale row");
+        using (var rawJson = JsonDocument.Parse(DamageTrace.Json(retained)))
+        {
+            Check(rawJson.RootElement.GetProperty("damageComponents")[0].GetProperty("bonus").GetInt32() == 15, "original displayed dice bonus is retained");
+            Check(rawJson.RootElement.GetProperty("rows").GetArrayLength() == model.Rows.Count, "all displayed rows retained with changed conditions");
+            Check(rawJson.RootElement.GetProperty("defense").ValueKind == JsonValueKind.Null, "missing defense remains null rather than invented zero DR");
+        }
+        var rawDefense = new DefenseProfile { Complete = true };
+        rawDefense.Reduction[DamageKind.Physical] = 10;
+        var rawInput = new BetaInput("actor", "target", "sword", "turn", "raw", 10, 20, 30, 12, 6, 12, 20, 2, false, true, true, defense: rawDefense);
+        var rawPreview = BetaModel.Build(rawInput, "raw-snapshot");
+        var rawComparison = new BetaComparison { Preview = rawPreview, PreviousRow = rawPreview.Rows[0], Status = BetaComparisonStatus.InputsChanged };
+        using (var rawJson = JsonDocument.Parse(DamageTrace.Json(DisplayedCombatEvidence.Capture(rawComparison))))
+        {
+            Check(rawJson.RootElement.GetProperty("defense").GetProperty("reductionByKind").GetProperty("Physical").GetInt32() == 10, "typed raw DR survives changed-input association");
+            Check(rawJson.RootElement.GetProperty("damageComponents")[0].GetProperty("rolls").GetInt32() == 12, "displayed 12D6 formula retained independently of actual result");
+            Check(rawJson.RootElement.GetProperty("damageComponents")[0].GetProperty("bonus").GetInt32() == 12, "displayed fixed damage bonus retained independently");
+        }
         Near(model.Rows[0].MeanOnHit.Value, 21.45, "conditional hit mean includes criticals, not misses");
         Check(AttackThreshold.Required(5, 20) == 15, "basic AB5 AC20 requires fifteen");
         Check(AttackThreshold.Required(9, 17) == 8, "observed AB9 AC17 requires eight and matches screenshot 65 percent");
@@ -153,6 +237,24 @@ static class BetaTests
             Near(m.Rows[0].Crit, critPairs / 400.0, "enumerated confirmation probability");
         }
         var tracker = new BetaTracker();
+        var shownHealth = FrozenDiagnosticJson.Capture(new Dictionary<string, object> { { "temporaryHp", 10 } });
+        model.DisplayedHealth = shownHealth;
+        tracker.Shown(model, 0);
+        model.DisplayedHealth = FrozenDiagnosticJson.Capture(new Dictionary<string, object> { { "temporaryHp", 999 } });
+        tracker.Begin("health-test", input, 0, true, 1);
+        var frozenHealthComparison = tracker.Finish("health-test", "actor", "target", "sword", true, 22, 28, 1, 8, 15, 2);
+        using (var doc = JsonDocument.Parse(DamageTrace.Json(DisplayedCombatEvidence.Capture(frozenHealthComparison))))
+            Near(doc.RootElement.GetProperty("healthProjection").GetProperty("temporaryHp").GetInt32(), 10,
+                "health evidence freezes at shown frame, not later refresh or attack completion");
+        model.DisplayedHealth = null;
+        tracker.Shown(model, 0); tracker.Begin("health-unknown", input, 0, true, 1);
+        model.DisplayedHealth = shownHealth;
+        var absentHealthComparison = tracker.Finish("health-unknown", "actor", "target", "sword", true, 22, 28, 1, 8, 15, 2);
+        using (var doc = JsonDocument.Parse(DamageTrace.Json(DisplayedCombatEvidence.Capture(absentHealthComparison))))
+            Check(doc.RootElement.GetProperty("healthProjection").ValueKind == JsonValueKind.Null,
+                "missing shown health is not replaced by a later available snapshot");
+        model.DisplayedHealth = null;
+
         Check(Finish(tracker) == null, "no displayed preview means no comparison");
         tracker.Shown(model, 0); tracker.Begin("attack", input, 0, true, 1);
         var equal = Finish(tracker);
@@ -222,6 +324,10 @@ static class BetaTests
             Check(doc.RootElement.GetProperty("rollEventId").GetString() == "roll-1" && doc.RootElement.GetProperty("differentFields").GetArrayLength() == 0,
                 "traceable partial-model comparison");
         foreach (var line in lines) using (JsonDocument.Parse(line)) { }
+        var healthData = new Dictionary<string, object> { { "currentHp", 50L }, { "temporaryHp", 10 },
+            { "expectedHpLoss", 2.0 }, { "expectedTemporaryHpLoss", 10.0 }, { "basis", "mean-state-hp-display" } };
+        multi.DisplayedHealth = FrozenDiagnosticJson.Capture(healthData);
+        healthData["temporaryHp"] = 999; // A later target change must not change the shown value.
         tracker.Shown(multi, 0); tracker.Begin("multi-attack", multiInput, 0, true, 1);
         var actualParts = new[] {
             multiInput.Components[0],
@@ -235,8 +341,12 @@ static class BetaTests
         {
             Check(doc.RootElement.GetProperty("basis").GetString().StartsWith("observed-"), "copied estimate source explicit in log");
             Check(doc.RootElement.GetProperty("damageComponents").GetArrayLength() == 2, "all displayed dice logged");
+            Near(doc.RootElement.GetProperty("healthProjection").GetProperty("temporaryHp").GetInt32(), 10, "immutable shown temporary HP retained");
             Near(doc.RootElement.GetProperty("rows")[0].GetProperty("meanOnHitRaw").GetDouble(), 12.85, "displayed conditional mean logged");
         }
+        using (var doc = JsonDocument.Parse(lines.Last()))
+            Check(doc.RootElement.GetProperty("displayedInputs").GetProperty("healthProjection").GetProperty("temporaryHp").GetInt32() == 10,
+                "actual comparison includes the shown health evidence");
         using (var doc = JsonDocument.Parse(lines.Last()))
             Check(doc.RootElement.GetProperty("actualDamageComponents")[1].GetProperty("rolls").GetInt32() == 2,
                 "all actual component dice logged for review");

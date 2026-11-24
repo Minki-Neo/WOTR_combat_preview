@@ -70,6 +70,14 @@ namespace CombatPreview
         public static string DefenseStamp(DefenseProfile p)
         {
             return p == null ? "unavailable" : p.Complete + ":" + p.HasConsumablePool + ":" + p.UnavailableReason
+                + ":" + p.PhysicalPool
+                + ":" + p.IncorporealEnergyDivisor
+                + ":swarm-decline:" + p.PhysicalDecline
+                + ":critical-immunity:" + p.CriticalImmune
+                + ":clustered-DR:" + p.ClusteredPhysicalDR
+                + ":pool-approx:" + p.PoolApproximationAllowed
+                + ":physical-sources:" + string.Join(",", p.PhysicalSequenceSources)
+                + ":energy-sources:" + string.Join(";", p.EnergySequenceSources.OrderBy(x => x.Key).Select(x => x.Key + "=" + string.Join(",", x.Value)))
                 + ":" + string.Join(",", p.Reduction.OrderBy(x => x.Key).Select(x => x.Key + "=" + x.Value))
                 + ":" + string.Join(",", p.Immunities.OrderBy(x => x));
         }
@@ -77,9 +85,18 @@ namespace CombatPreview
         {
             if (source == null) return null;
             var copy = new DefenseProfile { Complete = source.Complete, Source = source.Source,
-                UnavailableReason = source.UnavailableReason, HasConsumablePool = source.HasConsumablePool };
+                UnavailableReason = source.UnavailableReason, HasConsumablePool = source.HasConsumablePool,
+                PhysicalPool = source.PhysicalPool, IncorporealEnergyDivisor = source.IncorporealEnergyDivisor,
+                PhysicalDecline = source.PhysicalDecline, CriticalImmune = source.CriticalImmune, ClusteredPhysicalDR = source.ClusteredPhysicalDR,
+                PoolApproximationAllowed = source.PoolApproximationAllowed };
             foreach (var p in source.Reduction) copy.Reduction.Add(p.Key, p.Value);
             foreach (var k in source.Immunities) copy.Immunities.Add(k);
+            copy.PhysicalSequenceSources.AddRange(source.PhysicalSequenceSources);
+            foreach (var entry in source.EnergySequenceSources)
+                copy.EnergySequenceSources[entry.Key] = new List<(int Order, int Remaining, int PerHit)>(entry.Value);
+            foreach (var entry in source.EnergyPools) copy.EnergyPools[entry.Key] = entry.Value;
+            foreach (var entry in source.ConstantEnergyResistance) copy.ConstantEnergyResistance[entry.Key] = entry.Value;
+            foreach (var kind in source.MultipleEnergyPools) copy.MultipleEnergyPools.Add(kind);
             return copy;
         }
     }

@@ -32,12 +32,23 @@ namespace CombatPreview
                     postfix: new HarmonyMethod(typeof(SpellPreviewRuntime), nameof(SpellPreviewRuntime.ObserveParameters)) { priority = Priority.Last });
                 instance.Patch(AccessTools.Method(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "WouldCurrentlyTarget"),
                     postfix: new HarmonyMethod(typeof(SpellPreviewRuntime), nameof(SpellPreviewRuntime.ObserveTarget)) { priority = Priority.Last });
+                var recalculate = AccessTools.Method(typeof(Kingmaker.UnitLogic.Mechanics.MechanicsContext), "Recalculate", Type.EmptyTypes);
+                if (recalculate != null)
+                    instance.Patch(recalculate, postfix: new HarmonyMethod(typeof(SpellPreviewRuntime),
+                        nameof(SpellPreviewRuntime.ObserveRanks)) { priority = Priority.Last });
+                foreach (var type in HoverChance.PortraitTypes)
+                {
+                    var bind = AccessTools.DeclaredMethod(type, "BindViewImplementation");
+                    if (bind != null)
+                        try { instance.Patch(bind, postfix: new HarmonyMethod(typeof(HoverChance), nameof(HoverChance.RegisterPortrait))); }
+                        catch (Exception e) { Main.Error("Portrait binding observer unavailable; using layout search", e); }
+                }
                 harmony = instance; faulted = false;
             }
             catch { instance.UnpatchAll(Owner); throw; }
         }
         internal static void Remove()
-        { if (harmony != null) harmony.UnpatchAll(Owner); harmony = null; SpellPreviewRuntime.Clear(); }
+        { if (harmony != null) harmony.UnpatchAll(Owner); harmony = null; SpellPreviewRuntime.Clear(); OverlayReference.Remove(); }
         static void AfterAB(RuleCalculateAttackBonus __instance)
         { Read(() => BetaRuntime.ObserveABResult(__instance)); }
         static void AfterAC(RuleCalculateAC __instance)
@@ -48,10 +59,14 @@ namespace CombatPreview
         { Read(() => BetaRuntime.ObserveBaseABResult(__instance)); }
         static void AfterWeapon(RuleCalculateWeaponStats __instance)
         { Read(() => BetaRuntime.ObserveWeaponResult(__instance)); }
-        static void Read(Action read)
+        static void Read(Action read, [System.Runtime.CompilerServices.CallerMemberName] string name = "")
         {
-            if (faulted) return;
-            try { read(); }
+            if (OverlayReference.Active || faulted || !BetaRuntime.Enabled || !Main.Settings.UseObservedPreview) return;
+            try
+            {
+                using (ScopedReadMemo<Kingmaker.EntitySystem.Entities.UnitEntityData, string>.Begin())
+                using (PreviewPerformance.Measure(name)) read();
+            }
             catch (NotSupportedException) { }
             catch (Exception e) { faulted = true; Main.Error("Completed rule observer stopped", e); }
         }

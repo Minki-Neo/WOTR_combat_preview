@@ -36,6 +36,28 @@ static class NativeDefenseTests
         Check(immuneResult.Available && immuneResult.Expected == 0 && immuneResult.Normal.Max == 0 && immuneResult.Critical.Max == 0, "physical immunity yields zero even for criticals and minimum physical damage");
         var mixedImmune = MitigationMath.Calculate(new[] { physicalTerms[0], new DamageTerm(1, 6, 0, false) { Kind = DamageKind.Fire } }, 3, .8, .1, physicalImmune);
         Near(mixedImmune.Expected, 2.8, "physical immunity preserves additional fire damage");
+        var joranResistance = new DefenseProfile { Complete = true, Source = "fire-and-acid-resistance-fixture" };
+        SupportedCombatRules.AddReduction(joranResistance, DamageKind.Fire, 5);
+        SupportedCombatRules.AddReduction(joranResistance, DamageKind.Acid, 5);
+        var bite = new DamageTerm(0, 1, 22, false) { Kind = DamageKind.Physical };
+        var fire = new DamageTerm(0, 1, 9, false) { Kind = DamageKind.Fire };
+        var acid = new DamageTerm(0, 1, 3, false) { Kind = DamageKind.Acid };
+        var unaffectedBite = MitigationMath.Calculate(new[] { bite }, 2, .25, 0, joranResistance);
+        Check(unaffectedBite.Available, "energy resistance leaves Joran's physical damage calculable");
+        Near(unaffectedBite.Expected, 5.5, "energy resistance leaves 22 physical damage intact");
+        Near(MitigationMath.Calculate(new[] { bite, fire, acid }, 2, 1, 0, joranResistance).Expected,
+            26, "fire and acid resistance reduce only their respective damage components");
+        var skin = new DefenseProfile { Complete = true, PhysicalPool = (12, 10) };
+        var skinInput = new BetaInput("actor", "target", "weapon", "turn", "skin", 5, 19, 10,
+            0, 1, 8, 20, 1, true, true, true, attackPenalties: new[] { 0, 0 }, defense: skin);
+        var skinRows = BetaModel.Build(skinInput, "skin").Rows;
+        Near(skinRows[0].AfterDefense.Expected, 0, "first eight-point hit is absorbed by stoneskin");
+        Near(skinRows[1].AfterDefense.Expected, .95 * .95 * 4, "later hit models remaining pool and previous miss");
+        Check(skinRows[1].AfterDefense.Reason == "readonly-physical-pool-sequence", "physical pool calculation reaches the panel");
+        var both = BetaModel.Build(skinInput.WithConcealment(0, "skin+image", 1), "skin+image").Rows;
+        Near(both[0].AfterDefense.Expected, 0, "first hit is fully absorbed");
+        Near(both[1].AfterDefense.Expected, .475 * .475 * 4,
+            "an earlier body hit drains the pool but keeps the image for the next hit");
         var allImmune = new DefenseProfile { Complete = true, Source = "complete-immunity-fixture" };
         SupportedCombatRules.AddCompleteImmunity(allImmune);
         foreach (DamageKind kind in Enum.GetValues(typeof(DamageKind)))
@@ -44,6 +66,21 @@ static class NativeDefenseTests
             Check(MitigationMath.Calculate(new[] { new DamageTerm(1, 6, 4, true) { Kind = kind } }, 2, 1, .1, allImmune).Expected == 0, "complete immunity covers each supported damage type");
         }
         Check(SupportedCombatRules.DefenseStamp(allImmune) != SupportedCombatRules.DefenseStamp(physicalImmune), "immunity change invalidates defense cache");
+        var sourceProfile = new DefenseProfile { Complete = true, IncorporealEnergyDivisor = true };
+        sourceProfile.PhysicalSequenceSources.Add((0, 20, 10));
+        sourceProfile.EnergySequenceSources[DamageKind.Fire] = new List<(int Order, int Remaining, int PerHit)> { (1, 30, 10) };
+        sourceProfile.EnergyPools[DamageKind.Fire] = (30, 10);
+        sourceProfile.ConstantEnergyResistance[DamageKind.Fire] = 5;
+        sourceProfile.MultipleEnergyPools.Add(DamageKind.Fire);
+        var profileCopy = SupportedCombatRules.Copy(sourceProfile);
+        Check(profileCopy.IncorporealEnergyDivisor && profileCopy.EnergyPools[DamageKind.Fire].Remaining == 30
+            && profileCopy.ConstantEnergyResistance[DamageKind.Fire] == 5 && profileCopy.MultipleEnergyPools.Contains(DamageKind.Fire), "copy preserves all defense metadata");
+        Check(SupportedCombatRules.DefenseStamp(profileCopy) == SupportedCombatRules.DefenseStamp(sourceProfile), "copy initially has identical defense inputs");
+        profileCopy.EnergySequenceSources[DamageKind.Fire][0] = (1, 20, 10);
+        profileCopy.PhysicalSequenceSources[0] = (0, 5, 10);
+        Check(sourceProfile.EnergySequenceSources[DamageKind.Fire][0].Remaining == 30
+            && sourceProfile.PhysicalSequenceSources[0].Remaining == 20, "copied defense source collections are independent");
+        Check(SupportedCombatRules.DefenseStamp(profileCopy) != SupportedCombatRules.DefenseStamp(sourceProfile), "pool balance changes invalidate defense inputs");
         Check(!SupportedCombatRules.Bypass(false, new bool?[0]).Value, "DR dash always applies");
         Check(SupportedCombatRules.Bypass(true, new bool?[] { false, true, null }) == true, "OR accepts a deciding known bypass");
         Check(SupportedCombatRules.Bypass(false, new bool?[] { false, true, null }) == false, "AND deciding mismatch keeps DR even with unknown other clause");
@@ -98,6 +135,14 @@ static class NativeDefenseTests
         var applied = native.Apply(input);
         Check(applied.AttackBonus == 5 && applied.Bonus == 12 && applied.CriticalEdge == 17 && applied.Multiplier == 3, "engine totals replace fallback numbers including crit properties");
         Check(applied.AttackObserved && !applied.PairObserved && applied.DamageObserved, "target-independent AB never mislabeled as final target AC");
+        var favoredAdjusted = native.Apply(input, targetAttack: 2, targetDamage: 2, targetNotes: new[] { "favored enemy +2" });
+        Check(favoredAdjusted.AttackBonus == applied.AttackBonus + 2 && favoredAdjusted.Bonus == applied.Bonus + 2,
+            "target-independent native base receives favored AB and damage exactly once");
+        var otherTarget = native.Apply(input, targetAttack: 0, targetDamage: 0);
+        Check(otherTarget.Bonus == applied.Bonus, "target adjustment never mutates the reusable native base for another enemy");
+        var targetAdjusted = native.Apply(input, targetAttack: 4, targetNotes: new[] { "predicted flanking" });
+        Check(targetAdjusted.AttackBonus == applied.AttackBonus + 4 && !targetAdjusted.AttackObserved
+            && targetAdjusted.DamageObserved, "independent target adjustment added once and marked estimated");
         Check(applied.ModifierNotes[0] != "changed" && !applied.ModifierNotes.Contains("fallback PA"), "engine modifier evidence copied and fallback bonuses never reapplied");
         Check(applied.AttackPenalties.SequenceEqual(input.AttackPenalties), "engine totals preserve the attack pattern");
         Near(BetaModel.Build(applied, "native-dr").Rows[0].AfterDefense.Normal.Mean, 11.5, "engine damage and automatic DR compose end to end");

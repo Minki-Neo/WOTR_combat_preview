@@ -6,3 +6,9 @@
 *.dll
 *.pdb
 .venv/
+
+# Generated Python bytecode and private runtime diagnostics
+**/__pycache__/
+*.py[cod]
+*.jsonl
+*.jsonl.prev

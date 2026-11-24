@@ -27,7 +27,7 @@ static class ContractTests
     static readonly VanillaDefenseSnapshotProvider Vanilla = new VanillaDefenseSnapshotProvider();
     public static void Run()
     {
-        DefenseFixtures(); QualityFixtures(); DiagnosticsFixtures(); DiagnosticRegressionFixtures(); SafetyAndBoundaries();
+        DefenseFixtures(); QualityFixtures(); DiagnosticsFixtures(); PerformanceReportFixtures(); DiagnosticRegressionFixtures(); SafetyAndBoundaries();
         Console.WriteLine("PASS: " + checks + " defense/quality/diagnostic/safety assertions (fixtures, not game integration)");
     }
     static void DefenseFixtures()
@@ -176,7 +176,7 @@ static class ContractTests
             Check(doc.RootElement.GetProperty("name").GetString() == "\ufffd", "unpaired UTF16 does not corrupt JSONL");
         int before = lines.Count;
         for (int i = 0; i < 300; i++) r.Observe("rate-" + i, Actual(Context()));
-        Check(lines.Count - before <= 20 && r.Dropped > 0, "rate bounded at 20 records per second");
+        Check(lines.Count - before <= 256 && r.DroppedRaw > 0, "actual events have a separate bounded 256-record budget");
         r.Enabled = false; r.Enabled = true;
         Check(r.Observe("a", Actual(Context())).Status == ComparisonStatus.NoPrediction, "toggle clears pending and dedup state");
         var failed = new DiagnosticRecorder(line => { throw new IOException("disk full"); }, () => 0) { Enabled = true };
@@ -262,6 +262,33 @@ static class ContractTests
         r.Enabled = false;
         int ignored = r.IgnoredSimulated;
         Check(r.Observe("fake-off", fake) == null && r.IgnoredSimulated == ignored, "disabled observer does not process fake events");
+    }
+    static void PerformanceReportFixtures()
+    {
+        long now = 0; var lines = new List<string>();
+        var recorder = new DiagnosticRecorder(lines.Add, () => now, "performance-fixture") { Enabled = true };
+        var window = new Dictionary<string, object> { { "frames", 10L }, { "stages", new[] {
+            new Dictionary<string, object> { { "stage", "spell-damage" }, { "maximumMs", 20.5 }, { "maximumFrame", 7 } } } } };
+        for (int i = 0; i < 20; i++) recorder.RecordPrediction(Prediction(Context("preview" + i)));
+        Check(recorder.RecordPerformanceWindow(window), "reports survive exhausted preview budget");
+        using (var doc = JsonDocument.Parse(lines.Last()))
+        {
+            Check(doc.RootElement.GetProperty("kind").GetString() == "performance-window", "window kind preserved");
+            Near(doc.RootElement.GetProperty("performance").GetProperty("stages")[0].GetProperty("maximumMs").GetDouble(), 20.5,
+                "structured stages are numbers, not a truncated text summary");
+            Check(doc.RootElement.GetProperty("sessionId").GetString() == "performance-fixture", "performance shares event session identity");
+        }
+        for (int i = 0; i < 3; i++) Check(recorder.RecordPerformanceWindow(window), "bounded report budget available");
+        Check(!recorder.RecordPerformanceWindow(window) && recorder.DroppedReports == 1 && recorder.DroppedRaw == 0,
+            "report rate limits are disclosed separately from actual raw event loss");
+        for (int i = 0; i < 256; i++) recorder.Observe("roll" + i, Actual(Context()));
+        Check(recorder.DroppedRaw == 0, "reports do not consume actual-event budget");
+        now = 1000;
+        Check(recorder.RecordPerformanceWindow(window), "report budget resets on next second");
+        recorder.Enabled = false;
+        Check(!recorder.RecordPerformanceWindow(window), "disabled logging emits no performance records");
+        var broken = new DiagnosticRecorder(_ => throw new IOException("fixture"), () => 0) { Enabled = true };
+        Check(!broken.RecordPerformanceWindow(window) && broken.Faulted, "report write failure disables recorder without throwing into game");
     }
     static void SafetyAndBoundaries()
     {

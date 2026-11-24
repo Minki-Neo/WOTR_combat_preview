@@ -20,7 +20,7 @@ namespace CombatPreview
         public bool Detailed = true;
         public bool PanelDetails;
         public string DetailsKey = "F6", PinKey = "F7";
-        public float X = 24, Y = 160, Scale = 1, Width = 720;
+        public float X = 24, Y = 160, Scale = 1, Width = 820;
         public bool AnchorAboveActionBar;
         public bool AnchorLeft = true;
         public bool UseObservedPreview = true;
@@ -57,17 +57,19 @@ namespace CombatPreview
         public static bool Load(UnityModManager.ModEntry modEntry)
         {
             Log = modEntry.Logger;
+            Log.Log("CombatPreview DLL assembly version: " + typeof(Main).Assembly.GetName().Version);
             Settings = UnityModManager.ModSettings.Load<Settings>(modEntry);
-            if (Settings.PanelLayoutVersion < 2)
+            if (Settings.PanelLayoutVersion < 6)
             {
                 Settings.AnchorAboveActionBar = false; Settings.AnchorLeft = true;
-                Settings.Width = 720; Settings.X = 24; Settings.Y = 160;
-                Settings.PanelLayoutVersion = 2;
+                Settings.Width = 820; Settings.X = 24; Settings.Y = 160;
+                Settings.PanelLayoutVersion = 6;
             }
             Settings.Enabled = false;
             Settings.ScenarioConfirmed = false;
             modEntry.OnToggle = (e, enabled) =>
             {
+                if (!enabled) PreviewPerformance.Flush("mod-disabled");
                 Settings.Enabled = enabled && diagnosticsRegistered;
                 SyncRuleObservers();
                 if (!enabled) { Diagnostics?.Reset(); HoverChance.Invalidate(); }
@@ -142,7 +144,7 @@ namespace CombatPreview
             GUILayout.Label("상세 키"); Settings.DetailsKey = GUILayout.TextField(Settings.DetailsKey, GUILayout.Width(70));
             GUILayout.Label("대상 고정 키"); Settings.PinKey = GUILayout.TextField(Settings.PinKey, GUILayout.Width(70));
             GUILayout.EndHorizontal();
-            bool left = GUILayout.Toggle(Settings.AnchorLeft, "좌측에 압축 배치");
+            bool left = GUILayout.Toggle(Settings.AnchorLeft, "좌측 하단 · 초상화 위 배치");
             if (left != Settings.AnchorLeft) { Settings.AnchorLeft = left; if (left) Settings.AnchorAboveActionBar = false; }
             bool centered = GUILayout.Toggle(Settings.AnchorAboveActionBar, "하단 행동 막대 위 중앙 배치");
             if (centered != Settings.AnchorAboveActionBar) { Settings.AnchorAboveActionBar = centered; if (centered) Settings.AnchorLeft = false; }
@@ -152,11 +154,16 @@ namespace CombatPreview
             GUILayout.Label("베타 차이 기록: " + BetaRuntime.DifferenceCount + " | 기대 피해와 한 번의 무작위 피해는 불일치로 판정하지 않습니다.");
             if ((Settings.LocalDiagnostics || Settings.ShowOnHover && Settings.CompareBeta) && Diagnostics != null) GUILayout.Label(Diagnostics.Status);
             Settings.PanelDetails = GUILayout.Toggle(Settings.PanelDetails, "미리보기 상세 계산 표시");
+            GUILayout.Label("성능 계측 (누적 · 중첩 구간은 합산하지 않음)");
+            GUILayout.Label("HitChanceOverlay 비교: " + OverlayReference.Status);
+            GUILayout.Label(PreviewPerformance.Summary());
+            if (GUILayout.Button("성능 계측 초기화")) PreviewPerformance.Reset();
+            if (GUILayout.Button("성능 요약을 UMM 로그에 기록")) Log.Log(PreviewPerformance.Summary());
             GUILayout.Label("Panel scale");
             Settings.Scale = GUILayout.HorizontalSlider(Settings.Scale, 0.7f, 1.6f);
             GUILayout.Label("Panel width");
             Settings.Width = GUILayout.HorizontalSlider(Settings.Width, 620, 1100);
-            if (GUILayout.Button("패널 위치 초기화 (좌측 압축)")) { Settings.AnchorLeft = true; Settings.AnchorAboveActionBar = false; Settings.Width = 720; Settings.Scale = 1; }
+            if (GUILayout.Button("패널 위치 초기화 (초상화 위)")) { Settings.AnchorLeft = true; Settings.AnchorAboveActionBar = false; Settings.Width = 820; Settings.Scale = 1; }
             GUILayout.Label("자동 방어 적용 피해는 계산 불가입니다. 수동 시나리오는 실제 대상 방어가 아닙니다.");
             Settings.ManualScenario = GUILayout.Toggle(Settings.ManualScenario, "수동 물리 방어 시나리오 (실제 대상 방어 아님)");
             if (Settings.ManualScenario)

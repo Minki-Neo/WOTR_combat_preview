@@ -1,0 +1,135 @@
+{
+  "source": "WotR 2.7.0x local blueprint action topology; numeric CL is a test input",
+  "actions": [
+    {
+      "type": "Conditional",
+      "IfTrue": [
+        {
+          "type": "ContextActionDealDamage",
+          "diceSides": 12,
+          "halfIfSaved": false
+        },
+        {
+          "type": "ContextActionApplyBuff"
+        },
+        {
+          "type": "ContextActionSavingThrow",
+          "Actions": [
+            {
+              "type": "ContextActionConditionalSaved",
+              "Succeed": [],
+              "Failed": [
+                {
+                  "type": "ContextActionApplyBuff"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "IfFalse": [
+        {
+          "type": "Conditional",
+          "IfTrue": [
+            {
+              "type": "ContextActionDealDamage",
+              "diceSides": 10,
+              "halfIfSaved": false
+            },
+            {
+              "type": "ContextActionSavingThrow",
+              "Actions": [
+                {
+                  "type": "ContextActionConditionalSaved",
+                  "Succeed": [],
+                  "Failed": [
+                    {
+                      "type": "ContextActionApplyBuff"
+                    },
+                    {
+                      "type": "ContextActionApplyBuff"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "IfFalse": [
+            {
+              "type": "Conditional",
+              "IfTrue": [
+                {
+                  "type": "ContextActionDealDamage",
+                  "diceSides": 10,
+                  "halfIfSaved": false
+                },
+                {
+                  "type": "ContextActionSavingThrow",
+                  "Actions": [
+                    {
+                      "type": "ContextActionConditionalSaved",
+                      "Succeed": [],
+                      "Failed": [
+                        {
+                          "type": "ContextActionApplyBuff"
+                        },
+                        {
+                          "type": "ContextActionApplyBuff"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "IfFalse": [
+                {
+                  "type": "Conditional",
+                  "IfTrue": [
+                    {
+                      "type": "ContextActionDealDamage",
+                      "diceSides": 8,
+                      "halfIfSaved": false
+                    },
+                    {
+                      "type": "ContextActionSavingThrow",
+                      "Actions": [
+                        {
+                          "type": "ContextActionConditionalSaved",
+                          "Succeed": [],
+                          "Failed": [
+                            {
+                              "type": "ContextActionApplyBuff"
+                            },
+                            {
+                              "type": "ContextActionApplyBuff"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "IfFalse": [
+                    {
+                      "type": "ContextActionDealDamage",
+                      "diceSides": 6,
+                      "halfIfSaved": false
+                    },
+                    {
+                      "type": "ContextActionConditionalSaved",
+                      "Succeed": [],
+                      "Failed": [
+                        {
+                          "type": "ContextActionApplyBuff"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -22,17 +22,19 @@ namespace CombatPreview
             if (copy.Length == 0 || copy.Length > 32 || copy.Any(c => c == null)) throw new ArgumentException("Missing native damage components");
             Components = Array.AsReadOnly(copy); Modifiers = Array.AsReadOnly((modifiers ?? new string[0]).ToArray());
         }
-        public BetaInput Apply(BetaInput input, DefenseProfile defense = null, IEnumerable<string> defenseNotes = null)
+        public BetaInput Apply(BetaInput input, DefenseProfile defense = null, IEnumerable<string> defenseNotes = null,
+            int targetAttack = 0, IEnumerable<string> targetNotes = null, int targetDamage = 0)
         {
-            var components = SupportedCombatRules.ProjectPendingDamage(Components, input.PendingDamage);
+            var components = SupportedCombatRules.ProjectPendingDamage(Components, checked(input.PendingDamage + targetDamage));
             var first = components[0];
             return new BetaInput(input.Actor, input.Target, input.Weapon, input.Turn,
-                input.Signature + "|defense:" + SupportedCombatRules.DefenseStamp(defense ?? input.Defense) + "|engine:" + AttackBonus + ":" + Edge + ":" + Multiplier + ":" + string.Join(";", Components.Select(c => c.Kind + ":" + c.Rolls + ":" + c.Sides + ":" + c.Bonus)),
-                input.BAB, AttackBonus.HasValue ? checked(AttackBonus.Value + input.PendingAttack) : input.AttackBonus, input.AC, first.Rolls, first.Sides, first.Bonus, Edge, Multiplier,
+                input.Signature + "|target-damage:" + targetDamage + "|defense:" + SupportedCombatRules.DefenseStamp(defense ?? input.Defense) + "|engine:" + AttackBonus + ":" + Edge + ":" + Multiplier + ":" + string.Join(";", Components.Select(c => c.Kind + ":" + c.Rolls + ":" + c.Sides + ":" + c.Bonus)),
+                input.BAB, AttackBonus.HasValue ? checked(AttackBonus.Value + input.PendingAttack + targetAttack) : input.AttackBonus, input.AC, first.Rolls, first.Sides, first.Bonus, Edge, Multiplier,
                 input.FullAttack, true, input.DefensePartPresent, components,
-                AttackBonus.HasValue ? "observed-weapon-rules/estimated-target-ac" : "observed-weapon-damage/estimated-attack-ac", input.NaturalWeapon,
+                AttackBonus.HasValue ? targetAttack == 0 ? "observed-weapon-rules/estimated-target-ac"
+                    : "observed-base-attack/estimated-target-attack-ac" : "observed-weapon-damage/estimated-attack-ac", input.NaturalWeapon,
                 input.AttackPenalties, input.AttackCountSource, input.AttackCountReasons, input.Grip, defense ?? input.Defense,
-                Modifiers.Concat(new[] { "게임 공통 규칙 결과 사용: 활성 피트 보정 재합산 안 함" })
+                Modifiers.Concat(targetNotes ?? new string[0]).Concat(new[] { "게임 공통 규칙 결과 사용: 활성 피트 보정 재합산 안 함" })
                     .Concat(input.PendingAttack != 0 || input.PendingDamage != 0 ? new[] { "공격 시 예약 효과: AB " + input.PendingAttack + ", 피해 " + input.PendingDamage } : new string[0]),
                 defenseNotes ?? input.DefenseNotes, input.PendingAttack, input.PendingDamage);
         }

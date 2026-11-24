@@ -1,0 +1,57 @@
+{
+  "sourceSequence": 16877,
+  "sourceVersion": "0.5.42.0",
+  "ability": "환영 살인마",
+  "metadata": {
+    "spellOutcomes": [
+      {
+        "path": "SR 차단",
+        "chancePerCast": 0,
+        "damage": "피해 없음",
+        "effect": null
+      },
+      {
+        "path": "의지 성공",
+        "chancePerCast": 0.12249999999999994,
+        "damage": "피해 없음",
+        "effect": null
+      },
+      {
+        "path": "의지 실패 → 인내 실패",
+        "chancePerCast": 0.8226562500000001,
+        "damage": "즉사 (72 HP)",
+        "effect": null
+      },
+      {
+        "path": "의지 실패 → 인내 성공",
+        "chancePerCast": 0.054843750000000004,
+        "damage": "3D6",
+        "effect": null
+      }
+    ],
+    "stagedOutcome": {
+      "model": "two-saves-kill-on-second-failure",
+      "sources": {
+        "sr": "cached-basic-partial-model",
+        "firstSave": "cached-basic-partial-model",
+        "secondSave": "cached-basic-partial-model"
+      },
+      "firstSaveType": "Will",
+      "secondSaveType": "Fortitude",
+      "srPass": 1,
+      "firstSaveFailure": 0.8775000000000001,
+      "secondSaveFailureIfReached": 0.9375,
+      "secondSaveReached": 0.8775000000000001,
+      "instantDeath": 0.8226562500000001,
+      "damageBranchChance": 0.054843750000000004,
+      "currentHp": 72,
+      "temporaryHp": 21,
+      "damageBranchHpLoss": 0,
+      "expectedHpLossFromInstantDeath": 59.23125,
+      "expectedHpLossFromDamage": 0,
+      "expectedHpLoss": 59.23125,
+      "basis": "conditional on spell applying; effect immunities and special damage modifiers separate"
+    }
+  },
+  "expectedRows": 4
+}

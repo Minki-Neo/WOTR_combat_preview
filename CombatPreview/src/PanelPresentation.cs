@@ -49,15 +49,43 @@ namespace CombatPreview
             y = Math.Max(0, Math.Min(screenHeight - height, actionBarTop - height - 12));
         }
         public static void PlaceLeft(float screenWidth, float screenHeight, float width, float height, out float x, out float y)
+        { PlaceLeft(screenWidth, screenHeight, width, height, screenHeight * .78f, out x, out y); }
+        public static void PlaceLeft(float screenWidth, float screenHeight, float width, float height,
+            float portraitTop, out float x, out float y)
         {
-            x = Math.Max(0, Math.Min(24, screenWidth - width));
-            y = Math.Max(0, Math.Min(screenHeight - height, Math.Min(160, screenHeight * .16f)));
+            x = 0;
+            y = Math.Max(0, Math.Min(screenHeight - height, portraitTop - height - 16));
         }
         public static float CompactHeight(int rows, int components, bool details, float screenHeight)
         {
-            float row = Math.Max(30, components * 17 + 6) + (details ? 19 : 0);
+            float row = Math.Max(34, components * 20 + 8) + (details ? 21 : 0);
             return Math.Min(420, Math.Min(screenHeight * .6f, 145 + rows * row));
         }
+        // Visual segment of mean predicted damage, not a confidence interval or kill probability.
+        public static string DefenseLabel(BetaInput input)
+        {
+            var profile = input.Defense;
+            int applied = 0;
+            if (profile != null) profile.Reduction.TryGetValue(DamageKind.Physical, out applied);
+            var evidence = input.DefenseNotes.Where(n => n.Contains(": 물리 DR ")).Take(3)
+                .Select(n => n.Substring(n.IndexOf(": 물리 DR ", StringComparison.Ordinal) + 2)).ToArray();
+            string result = profile != null && profile.Complete && !profile.HasConsumablePool
+                ? "이 무기에 적용 DR " + applied : "이 무기에 적용 DR 미확인";
+            if (profile != null && profile.Immunities.Contains(DamageKind.Physical)) result += " · 물리 피해 면역";
+            else if (profile?.PhysicalDecline < 1) result += " · 군체 물리 반감";
+            if (profile?.CriticalImmune == true) result += " · 치명타 면역";
+            if (profile?.PhysicalPool is (int Remaining, int PerHit) pool)
+                result += " · 물리 보호막 " + pool.Remaining + " (타격당 최대 " + pool.PerHit + ")";
+            return evidence.Length == 0 ? result : string.Join(" · ", evidence) + " | " + result;
+        }
+        public static double HealthLoss(long current, int maximum, int temporary, double? expected)
+        {
+            if (maximum <= 0 || temporary > 0 || !expected.HasValue || double.IsNaN(expected.Value)
+                || double.IsInfinity(expected.Value) || expected.Value < 0) return 0;
+            return Math.Min(Math.Max(0, Math.Min((double)current, maximum)), expected.Value);
+        }
+        public static float HealthLossPixels(float lossPixels, float currentPixels)
+            => lossPixels > 0 && currentPixels > 0 ? Math.Min(currentPixels, Math.Max(1.5f, lossPixels)) : 0;
     }
     // Copies only scalars from an already completed GAME-created estimate.
     // No fake event is created, executed, or counted as a real attack by the mod.

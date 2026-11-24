@@ -12,7 +12,18 @@ namespace CombatPreview
             double success = pass / 20.0;
             return 1 - (persistent ? success * success : success);
         }
-        public static double AttackHit(int bonus, int ac) { return 1 - SaveFailure(bonus, ac); }
+        internal static bool AttackHits(int die, int bonus, int ac, bool alwaysChance)
+            => die == 20 || (die > 1 || alwaysChance) && (long)die + bonus >= ac;
+
+        internal static double RepeatedMiss(double miss, int rerolls) => Math.Pow(miss, 1 + rerolls);
+
+        public static double AttackHit(int bonus, int ac, bool alwaysChance = false)
+        {
+            int hits = 0;
+            for (int die = 1; die <= 20; die++)
+                if (AttackHits(die, bonus, ac, alwaysChance)) hits++;
+            return hits / 20.0;
+        }
         public static double ResistancePass(int penetration, int sr)
         {
             int pass = 0;

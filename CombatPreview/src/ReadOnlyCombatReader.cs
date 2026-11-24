@@ -26,13 +26,35 @@ namespace CombatPreview
     // Never invoke component handlers, ContextValue.Calculate, reference.Get or Ensure.
     internal static class CombatFields
     {
-        internal static object Read(object o, string name) { return o == null ? null : AccessTools.Field(o.GetType(), name)?.GetValue(o); }
+        static readonly Dictionary<Type, Dictionary<string, System.Reflection.FieldInfo>> fields = new Dictionary<Type, Dictionary<string, System.Reflection.FieldInfo>>();
+        internal static System.Reflection.FieldInfo Field(Type type, string name)
+        {
+            if (type == null) return null;
+            lock (fields)
+            {
+                Dictionary<string, System.Reflection.FieldInfo> names;
+                if (!fields.TryGetValue(type, out names)) fields[type] = names = new Dictionary<string, System.Reflection.FieldInfo>();
+                System.Reflection.FieldInfo field;
+                if (!names.TryGetValue(name, out field)) names[name] = field = AccessTools.Field(type, name);
+                return field;
+            }
+        }
+        // Cache metadata only. Every value is still read from the current object.
+        internal static object Read(object o, string name) { return o == null ? null : Field(o.GetType(), name)?.GetValue(o); }
         internal static int Int(object o, string name, int fallback = 0) { var v = Read(o, name); return v == null ? fallback : Convert.ToInt32(v, CultureInfo.InvariantCulture); }
         internal static bool Bool(object o, string name) { return Read(o, name) as bool? == true; }
+        internal static int? CachedStat(ModifiableValue stat)
+        {
+            if (stat == null) return null;
+            string field = stat.InsightBonusesDisabled ? "<NoMoraleNoInsight>k__BackingField"
+                : stat.MoraleBonusesDisabled ? "<NoMorale>k__BackingField" : "<ModifiedValue>k__BackingField";
+            return Read(stat, field) as int?;
+        }
         internal static object Blueprint(object fact) { return Read(fact, "<Blueprint>k__BackingField"); }
         internal static object Component(object runtime) { return Read(runtime, "<SourceBlueprintComponent>k__BackingField"); }
         internal static int Rank(object fact) { return Int(fact, "<Rank>k__BackingField", 1); }
         internal static string Label(object fact) { return (Blueprint(fact) as BlueprintUnitFact)?.Name ?? "활성 효과"; }
+        internal static Guid? ReferenceGuid(object reference) => BlueprintReferenceIdentity.Read(reference, Read);
         internal static bool Reference(object reference, object blueprint)
         {
             if (reference == null || blueprint == null) return false;
@@ -40,9 +62,8 @@ namespace CombatPreview
             if (bp == null) return false;
             var cached = Read(reference, "<Cached>k__BackingField");
             if (cached != null) return cached == blueprint;
-            var guid = Read(reference, "guid") as string;
-            if (string.IsNullOrEmpty(guid)) guid = Read(reference, "deserializedGuid")?.ToString();
-            return string.Equals(guid?.Replace("-", ""), bp.AssetGuid.ToString().Replace("-", ""), StringComparison.OrdinalIgnoreCase);
+            var guid = ReferenceGuid(reference);
+            return guid.HasValue && guid.Value.ToString("N") == bp.AssetGuid.ToString().Replace("-", "");
         }
         internal static bool HasFact(UnitEntityData unit, object reference, object parameter = null)
         { return reference != null && unit.Facts.List.Any(f => f.Active && Reference(reference, Blueprint(f)) && (parameter == null || Equals(Read(f, "<Param>k__BackingField"), parameter))); }
@@ -62,10 +83,11 @@ namespace CombatPreview
         internal static string FactStamp(object fact)
         {
             var c = Read(fact, "m_Context");
-            Func<string, string> array = name => { var a = Read(c, name) as int[]; return a == null ? "?" : string.Join(",", a); };
             return BetaIdentity.Id(fact) + ":" + Read(fact, "<IsActive>k__BackingField") + ":" + Rank(fact)
-                + ":" + Read(fact, "m_IsOn") + ":" + Read(fact, "<IsStarted>k__BackingField") + ":" + Read(fact, "<IsSuppressed>k__BackingField") + ":" + array("m_Ranks") + ":" + array("m_SharedValues");
+                + ":" + Read(fact, "m_IsOn") + ":" + Read(fact, "<IsStarted>k__BackingField") + ":" + Read(fact, "<IsSuppressed>k__BackingField") + ":" + ArrayStamp(c, "m_Ranks") + ":" + ArrayStamp(c, "m_SharedValues");
         }
+        static string ArrayStamp(object context, string name)
+        { var array = Read(context, name) as int[]; return array == null ? "?" : string.Join(",", array); }
     }
     internal sealed class WeaponTraits
     {
@@ -80,7 +102,7 @@ namespace CombatPreview
     }
     internal static class ActiveCombatReader
     {
-        internal static IEnumerable<EntityFact> Enchantments(ItemEntityWeapon weapon)
+        internal static IEnumerable<EntityFact> Enchantments(ItemEntity weapon)
         {
             // Read the existing manager list. RawFacts/GetAll and ItemEntity.Enchantments
             // can populate caches, so none of these getters are invoked.
@@ -91,7 +113,7 @@ namespace CombatPreview
             int count = 0;
             foreach (var item in list) { if (++count > 128) throw new NotSupportedException("무기 마법부여 판독 한도"); var f = item as EntityFact; if (f != null && f.Active) yield return f; }
         }
-        internal static WeaponTraits Traits(ItemEntityWeapon weapon)
+        internal static WeaponTraits Traits(ItemEntityWeapon weapon, UnitEntityData actor = null)
         {
             var t = new WeaponTraits();
             var physical = weapon.Blueprint.DamageType?.Physical;
@@ -116,6 +138,7 @@ namespace CombatPreview
                     else if (c.GetType() == typeof(WeaponAlignment)) t.Alignment |= (int)((WeaponAlignment)c).Alignment;
                 }
             t.Enhancement = Math.Max(t.Enhancement, enhancement + stack); t.EnhancementTotal = Math.Max(t.EnhancementTotal, total);
+            ActorWeaponEffects.Enhance(actor, weapon, t);
             t.Notes.Add("무기 강화 +" + t.Enhancement + " · 관통 강화 합계 " + t.EnhancementTotal + " · 재질 " + (PhysicalDamageMaterial)t.Materials + " · 성향 " + (DamageAlignment)t.Alignment);
             return t;
         }
@@ -163,14 +186,18 @@ namespace CombatPreview
         internal static CombatModifiers Read(UnitEntityData unit, UnitEntityData target, ItemEntityWeapon weapon, int bab, bool full, bool twoHands, int initialAbility, WeaponTraits traits)
         {
             var result = new CombatModifiers { Ability = initialAbility };
+            var typedAttack = new List<ProjectedModifier>();
+            var activeTypedAttack = new List<ProjectedModifier>();
             // Enhancement competes with an existing nonstacking enhancement stat bonus.
             result.Attack = Math.Max(0, traits.Enhancement - CachedEnhancement(unit.Stats.AdditionalAttackBonus));
             result.Damage = Math.Max(0, traits.Enhancement - CachedEnhancement(unit.Stats.AdditionalDamage));
+            int favored = ActorWeaponEffects.FavoredEnemy(unit, target, result.Notes);
+            result.Attack += favored; result.Damage += favored;
             if (traits.Enhancement != 0) result.Notes.Add("무기 강화: AB +" + result.Attack + ", 피해 +" + result.Damage);
             foreach (var entry in PendingAttackEffects.Entries(unit, weapon, full, result.Notes))
             {
                 var fact = entry.Fact; var c = entry.Component;
-                int attack = 0, damage = 0; bool supported = true;
+                int attack = 0, damage = 0; bool supported = true, typed = false;
                 try
                 {
                     if (entry.Pending && c.GetType() == typeof(AddStatBonus))
@@ -185,7 +212,7 @@ namespace CombatPreview
                     {
                         var a = (WeaponParametersAttackBonus)c;
                         if ((a.OnlyForFullAttack && !full) || !Filters(c, unit, weapon, twoHands, false)) continue;
-                        if (a.Descriptor != ModifierDescriptor.UntypedStackable && a.Descriptor != ModifierDescriptor.Penalty) throw new NotSupportedException("유형별 중첩 AB " + a.Descriptor);
+                        typed = a.Descriptor != ModifierDescriptor.UntypedStackable && a.Descriptor != ModifierDescriptor.Penalty;
                         int value = a.AttackBonus;
                         if (a.UseContextIstead && ((entry.Pending && a.ContextAttackBonus?.ValueType != ContextValueType.Simple) || !CombatFields.Scalar(a.ContextAttackBonus, fact, out value))) throw new NotSupportedException("동적 명중 수치");
                         attack = SupportedCombatRules.AttackModifier(value, bab, entry.Pending ? 1 : CombatFields.Rank(fact), a.ScaleByBasicAttackBonus,
@@ -235,11 +262,22 @@ namespace CombatPreview
                 catch (NotSupportedException e) { result.Notes.Add("미확인 " + CombatFields.Label(fact) + ": " + e.Message); continue; }
                 if (supported && (attack != 0 || damage != 0))
                 {
-                    result.Attack += attack; result.Damage += damage;
-                    if (entry.Pending) { result.PendingAttack += attack; result.PendingDamage += damage; }
+                    if (typed)
+                    {
+                        var descriptor = ((WeaponParametersAttackBonus)c).Descriptor;
+                        var modifier = new ProjectedModifier { Value = attack, Descriptor = (int)descriptor, Stacks = descriptor.IsStackable() };
+                        typedAttack.Add(modifier);
+                        if (!entry.Pending) activeTypedAttack.Add(modifier);
+                    }
+                    else result.Attack += attack;
+                    result.Damage += damage;
+                    if (entry.Pending) { if (!typed) result.PendingAttack += attack; result.PendingDamage += damage; }
                     result.Notes.Add(entry.Label + ": AB " + attack.ToString("+0;-0;0") + ", 피해 " + damage.ToString("+0;-0;0"));
                 }
             }
+            int typedTotal = RuleBonusMath.Sum(typedAttack);
+            result.Attack += typedTotal;
+            result.PendingAttack += typedTotal - RuleBonusMath.Sum(activeTypedAttack);
             return result;
         }
     }

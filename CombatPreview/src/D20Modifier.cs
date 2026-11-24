@@ -12,6 +12,8 @@ namespace CombatPreview
         public bool OnlyIfFailed;
         // Added to every saving throw stat while the roll is made (AddSavingThrowBonus).
         public int SaveBonus;
+        internal int? SaveBonusDescriptor;
+        internal int SaveBonusBaselinePositive, SaveBonusBaselineNegative;
         // 0..100, 100 when it always applies.
         public int Chance = 100;
         // WotR: "reroll only if succeeded", and a test of the first die against a value (ModifyD20.RollConditionType:
@@ -19,6 +21,8 @@ namespace CombatPreview
         public bool OnlyIfSuccess;
         public int Compare;
         public int CompareValue;
+        internal string FactKey;
+        internal bool ConsumeWhenApplied, ConsumeOn20;
 
         // Whether the modifier applies to a roll whose first die is f (ModifyD20.ShouldReroll).
         internal bool Applies(int f, Func<int, bool> failed)

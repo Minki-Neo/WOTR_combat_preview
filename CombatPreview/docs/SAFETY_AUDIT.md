@@ -1,3 +1,11 @@
+> 0.5.45 extends detached buff context descriptors, Replace/Rank lifetime transitions and supported AddContextStatBonus values. It reads the stored RestrictionCalculator/PropertyCalculator shape but does not invoke their predicates, ContextValue.Calculate or lifecycle methods. Unknown dependencies remain unavailable. Real save diagnostics copy the engine's captured modifier list only. Pure numeric rank/stat changes never write back to live facts or modifiers.
+
+> 0.5.44 reads active reroll/parameter/damage settings and completed dice/modifier records; distribution evaluation uses detached numbers and never RNG or a component handler. Parameter fallback excludes unknown/special sources, and only audited dependencies may omit geometry from the parameter key. Synchronous memoization ends with the callback. Rank changes and descriptor removals modify detached ledgers/modifiers only. No buff, action, rule, resource or protection is executed or changed. The optional allocation counter does not force GC. HCO output remains comparison-only; its observed numbers never populate the independent model.
+
+> 0.5.42 reads subscribed swarm/critical-immunity components and existing attacker facts, weapon category/form and delivery components. It does not invoke swarm event handlers, add damage declines or modify game damage bundles. Vulnerability is part of the detached distribution/cache input. The target's displayed size/name is not used to infer swarm rules; HCO remains comparison-only.
+
+> 0.5.40 projects supported buff stat/condition changes into detached value collections. It never applies a buff, executes its actions/handlers or writes a live modifier/pool. Existing stat caches, loaded mechanics buff references and registered DR order are read. Missing definitions or unsupported components invalidate the dependent projection. Protected distribution memoization retains only numeric/string keys and detached numerical results, bounded to 32 entries. HCO results remain comparison-only inputs.
+
 > 0.3.3 adds a third explicit completed-rule postfix for attack counts. Legacy replay remains blocked; see the final section for current grip/count/defense boundaries.
 
 > 0.3.2 current policy: legacy replay/suppression patches stay blocked. Two opt-in, explicitly installed postfix observers now read completed AB/AC rules. Historical “no Harmony patches” statements below describe earlier versions. See the final section.
@@ -230,3 +238,46 @@ Probabilities are conditional baseline d20 values, not a certification of full s
 Conditional/custom save DC and unrecognized delivery paths are refused. Effect immunity, save
 replacement/auto-pass, conditional bonuses and special rerolls are not certified. No combined debuff
 success percentage is produced. The legacy SpellChance/DryRun predictor remains blocked.
+
+## 0.5.1 completed damage trace audit
+
+The existing real RuleDealDamage did-trigger observer copies ResultList (32 components maximum), stored
+half/decline sources, damage scalar fields and bounded resistance modifiers. It never calls BaseDamage.Decline,
+rule handlers, RNG, damage application, defense initialization, pool spending, or cleanup. Audited DamageValue
+Reduction/FinalValue getters perform only arithmetic on completed source fields. The computed component final
+is independently reconstructed in pure DTO code. Unknown kinds are not inferred through arbitrary virtual Type getters.
+CompletedDamageTrace is gated on the existing supported game/mod configuration. A trace failure produces an
+explicit missing-evidence record and preserves the older AB/AC logger. Preview associations expire after 10 seconds,
+are bounded to 128, and are cleared on diagnostic reset; redirected attacker/target pairs do not reuse the original model.
+No new Harmony patch is added. All full-game state/RNG preservation assertions remain unverified in-game.
+
+## 0.5.7 native HP UI ownership
+
+The only new UI mutation is a mod-owned Image child under an existing native HP Image. It has no raycast target,
+no cloned game component/shader, and no event subscription. Existing game Image fields are read but not modified.
+A pooled controller must still point to the preview target before display; visibility is checked each LateUpdate.
+Host searches are throttled and no additional combat calculation is performed. Live UI and lifecycle verification
+remain outstanding, so this is a test integration and the panel HP display stays available as fallback.
+
+## 0.5.11 주문 추적
+추가 Rulebook 실행이나 난수 생성 없이 완료된 판정을 구독합니다. 전달 무기는 이미 로드된 Blueprint 캐시만 비차단 잠금으로 조회하며 참조 Get/Load를 호출하거나 캐시를 변경하지 않습니다. 게임이 생성한 가상 접촉 공격 값은 동일 선택 능력·대상·상태 및 0.25초 이내에서만 활용합니다. 내성 DC 관측 유효기간은 유지합니다.
+
+## 0.5.12
+장판/버프 탐색은 기존 로드된 참조와 ActionList 필드만 읽습니다. 조건/액션을 실행하지 않습니다. 순환 방지와 탐색 한도를 두며 한도 초과 시 후보 DC의 수치를 확정하지 않습니다. 100ms 공유는 정적 효과 정의에 한하며 상태/DC/대상 확률 캐시가 아닙니다. 자동 성능 요약은 60초 주기로 로컬 UMM 로그에만 기록합니다.
+
+## 0.5.13 — 선택적 외부 예측 결과 관측
+HCO DLL을 메타데이터/IL로 조사했습니다. 조건부 보너스·은폐·미러 이미지·내성/SR·효과 분기를 처리하며 자체 예측 규칙을 실행하는 구조였습니다. 구현 코드를 복제하거나 그 계산 함수를 호출하지 않습니다. 기존 호출의 입력 식별자와 반환 필드만 관측합니다.
+기존 규칙 결과 관측 정책에서 선택적 HCO 어댑터의 prefix/finalizer를 추가했습니다. prefix는 우리 쪽 스레드별 출처 스택만 시작하고 인수/게임 상태/실행 여부를 바꾸지 않습니다. postfix는 반환 필드만 읽으며 finalizer는 원래 예외를 그대로 반환하고 스택을 정리합니다. 하드 종속 참조나 HCO DLL 배포는 없습니다. 알고 있는 MVID에서만 패치합니다.
+HCO 예측 이벤트를 실제 전투 및 독립적 게임 관측으로 분류하지 않습니다. DC는 출처를 표시합니다. 최근 기록은 128개, 하위 판정은 24개, 표시 문구는 16개로 제한하며 무기 로그 비교는 매 프레임 대신 150ms로 제한합니다. 추가 비용은 성능 로그에 따로 기록합니다. 게임 내 Harmony 상호작용과 FPS는 실제 실행으로 검증해야 합니다.
+
+## 0.5.14 — 피해식 정적 해석
+ContextValue.Calculate/ContextDiceValue.Calculate/ContextRankConfig.GetValue/액션/Rulebook를 호출하지 않습니다. 관측된 최신 CL과 메타매직, 정적 정의 필드로 기본식을 해석합니다. 장판/버프의 지속 피해를 시전 즉시 피해로 합산하지 않습니다. 탐색 깊이 8/예산 256/순환 방지, 표시 12개, 반사 필드 캐시 128개로 제한합니다. 정적 효과 경로는 250ms 동안 범위 대상 사이에 공유하고 CL/대상 확률을 캐시하지 않습니다. spell-damage-preview 시간은 자동 성능 요약에 포함합니다.
+## 0.5.39
+
+현재 턴 CurrentAbility는 m_LastAbility를 반환하는 단순 getter임을 확인했습니다. 강조 대상, 주문책 CL 구성 값과 조건 판독은 기존 필드/컬렉션을 읽으며 게임의 조건 검사·파라미터 계산기·액션·Rulebook를 실행하지 않습니다. 조건 분기는 모드 소유 자료에만 저장하고, 액션 탐색 및 분포 계산에 별도 한도를 둡니다. HCO 결과의 수치 주입은 없습니다.
+
+HUD BindViewImplementation postfix는 모드 소유 RectTransform 후보 목록만 갱신합니다. UI 바인딩 훅 실패는 선택적 기능으로 격리하고 기존 탐색을 유지합니다. 보호막·거울상은 모드 소유 확률 분포만 변경하며 실제 잔량·교전 목록을 수정하지 않습니다. 시전 로그의 사전 입력은 약한 이벤트 키에 저장하고 완료 이벤트에서만 대조 정보로 사용합니다. 입력 일치 표시는 추적된 필드에 한정됩니다.
+
+
+## 0.5.68 read-only adapters
+AttackCommandReader reads existing command/plan/hand fields and compares rule/weapon object identity. No command, slot creation, fake weapon getter or attack execution is invoked. AutoMetamagicReader reconstructs the audited base predicates from registered tuples, blueprint components, existing item/book/class fields and loaded blueprint references. It never calls ShouldApplyTo/IsSuitableAbility, consumes a buff, writes game caches, or loads blueprints. Unknown derived predicates remain unavailable. Batch memoization is scoped to one refresh; item parameter failures retain auto-source evidence.

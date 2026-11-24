@@ -25,7 +25,7 @@ namespace CombatPreview
     internal static class PendingAttackEffects
     {
         static BlueprintBuff CachedBuff(object source)
-        { return CombatFields.Read(CombatFields.Read(source, "m_Buff"), "<Cached>k__BackingField") as BlueprintBuff; }
+        { return LoadedBlueprintReader.Read(CombatFields.Read(source, "m_Buff")) as BlueprintBuff; }
         internal static IEnumerable<ModifierEntry> Entries(UnitEntityData unit, ItemEntityWeapon weapon, bool full, List<string> notes)
         {
             var list = new List<ModifierEntry>();

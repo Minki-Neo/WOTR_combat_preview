@@ -28,9 +28,10 @@ namespace CombatPreview
     {
         public static DamageSummary Summarize(IList<DamageTerm> terms, int criticalMultiplier)
         { return SummarizeReduced(terms, criticalMultiplier, 1, 0); }
-        public static DamageSummary SummarizeReduced(IList<DamageTerm> terms, int criticalMultiplier, int floor, int reduction)
+        public static DamageSummary SummarizeReduced(IList<DamageTerm> terms, int criticalMultiplier, int floor, int reduction, double factor = 1)
         {
             if (floor < 0 || reduction < 0) throw new ArgumentOutOfRangeException("reduction");
+            if (!(factor > 0 && factor <= 1)) throw new ArgumentOutOfRangeException("factor");
             if (terms == null || terms.Count == 0) throw new ArgumentException("Empty damage bundle");
             if (criticalMultiplier < 1 || criticalMultiplier > 10) throw new ArgumentOutOfRangeException("criticalMultiplier");
             var pmf = new double[] { 1.0 };
@@ -55,7 +56,7 @@ namespace CombatPreview
             for (int i = 0; i < pmf.Length; i++)
             {
                 if (pmf[i] == 0) continue;
-                int value = Math.Max(0, Math.Max(floor, checked(i + bonus)) - reduction);
+                int value = Math.Max(0, Math.Max(floor, (int)Math.Floor(checked(i + bonus) * factor)) - reduction);
                 result.Min = Math.Min(result.Min, value); result.Max = Math.Max(result.Max, value);
                 result.Mean += value * pmf[i];
             }

@@ -92,5 +92,26 @@ class Program
         BetaTests.Run();
         NativeDefenseTests.Run();
         SpellPreviewTests.Run();
+        SpellSequenceTests.Run();
+        ProtectedSpellTests.Run();
+        ProjectedStatTests.Run();
+        BuffTransitionTests.Run();
+        ConditionLifetimeTests.Run();
+        SpellTargetScalingTests.Run();
+        SpellEnergyScalingTests.Run();
+        WeaponFallbackTests.Run();
+        StatefulFeatureTests.Run();
+        PreviewSchedulingTests.Run();
+        ShieldApproximationTests.Run();
+        SwarmTests.Run();
+        SpellOutcomePresentationTests.Run();
+        ActionGraphTests.Run();
+        DamageTraceTests.Run();
+        CombatRegression67Tests.Run();
+        CombatRegression68Tests.Run();
+        ItemSpellTests.Run();
+        AttackActionTests.Run();
+        ActiveProbabilityTests.Run();
+        ConditionalSaveBonusTests.Run();
     }
 }
