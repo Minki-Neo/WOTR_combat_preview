@@ -6,6 +6,7 @@
 
 ## 최신 개발 및 검증 기록
 
+- [개발 회고와 후속 개발 가이드 (0.5.0 → 0.5.68)](CombatPreview/docs/DEVELOPMENT_HISTORY.ko.md)
 - [설치·사용 및 버전별 변경](CombatPreview/README.ko.md)
 - [구현 목록과 남은 항목](CombatPreview/docs/IMPLEMENTATION_CHECKLIST.ko.md)
 - [로그로 확인한 개발 항목](CombatPreview/docs/OPEN_ITEMS.ko.md)

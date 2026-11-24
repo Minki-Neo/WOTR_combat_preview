@@ -1,5 +1,7 @@
 # Pathfinder WotR Combat Preview — Codex 작업 이관 명세서
 
+> 이 문서는 0.2.0 출발점의 역사 자료입니다. 현행 0.5.68을 이어서 개발할 때는 [개발 회고와 후속 개발 가이드](DEVELOPMENT_HISTORY.ko.md)를 먼저 읽으세요. 아래 구현 상태와 미완료 목록은 작성 당시 기준입니다.
+
 작성일: 2026-10-31 (한국 시간)  
 기준 소스: Combat Preview 0.2.0  
 목적: 기존 실험용 소스를 이어받아 실제 설치·검증 가능한 Unity Mod Manager 모드로 발전시킨다.
